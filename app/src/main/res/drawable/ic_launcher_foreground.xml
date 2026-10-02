@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- خورشید -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M54,22a14,14 0 1,0 0.001,0z" />
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M54,10l2,7h-4zM54,48l2,-7h-4zM42,13l4.5,5.6l-3.8,2.2zM66,45l-4.5,-5.6l3.8,-2.2zM34,22l7,2v4zM74,34l-7,-2v4zM42,43l4.5,-5.6l-3.8,-2.2zM66,13l-4.5,5.6l3.8,2.2zM34,34l7,-2v-4zM74,22l-7,2v4z" />
+    <!-- تپه سبز -->
+    <path
+        android:fillColor="#7CC24E"
+        android:pathData="M20,78 Q40,58 62,76 T96,74 L96,88 L20,88 Z" />
+    <!-- خانه کوچک -->
+    <path
+        android:fillColor="#EF5350"
+        android:pathData="M40,66 L50,56 L60,66 Z" />
+    <path
+        android:fillColor="#FFF3E0"
+        android:pathData="M43,66 h14 v12 h-14 z" />
+    <path
+        android:fillColor="#8D6E63"
+        android:pathData="M48,70 h4 v8 h-4 z" />
+</vector>

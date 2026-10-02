@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">شهر شادی</string>
+    <string name="game_title">شهر شادی</string>
+    <string name="game_subtitle">دنیای بازی دوبعدی — بزرگ شو، کار کن، خرید کن!</string>
+    <string name="btn_new_game">شروع بازی جدید</string>
+    <string name="btn_continue">ادامه بازی</string>
+    <string name="btn_help">راهنمای بازی</string>
+    <string name="btn_exit">خروج</string>
+    <string name="sound_on">صدا: روشن</string>
+    <string name="sound_off">صدا: خاموش</string>
+    <string name="help_title">راهنمای بازی</string>
+    <string name="help_text">• با جوی‌استیک سمت چپ حرکت کن\n• دکمه بزرگ سمت راست: انجام کار (حرف زدن، رفتن تو مغازه، سوار شدن)\n• با ماشین یا موتور: جوی‌استیک بالا گاز، پایین ترمز، چپ و راست فرمان\n• پول جمع کن: شغل بگیر، ماموریت انجام بده\n• غذا بخور و استراحت کن تا انرژی‌ات پر بمونه\n• شب که می‌شه براق خونه برو و بخواب تا صبح بشه\n• تو آرایشگاه موهات رو عوض کن، تو گاراژ ماشینت رو اسپرت کن!</string>
+    <string name="confirm_new_game">بازی قبلیت پاک می‌شه! مطمئنی بازی جدید شروع کنی؟</string>
+    <string name="yes">بله</string>
+    <string name="no">نه</string>
+    <string name="ok">باشه</string>
+</resources>
