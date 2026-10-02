@@ -80,7 +80,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         sprites = new SpriteLib();
         ui = new UIManager(this);
         miniMap = new MiniMap();
-        miniMap.buildFromWorld(world.tileType);
+        miniMap.buildFromWorld(world.tileType, 0f);
         jobs = new JobSystem(world, rng, this);
         missions = new MissionSystem(world, rng);
         shop = new ShopSystem(this);

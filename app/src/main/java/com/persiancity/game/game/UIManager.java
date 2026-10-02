@@ -83,7 +83,6 @@ public class UIManager {
         textP.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
         textP.setTextAlign(Paint.Align.CENTER);
         tp.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-        tp.setTextDirection(TextDirectionHeuristics.FIRSTSTRONG_RTL);
     }
 
     public void layout(int w, int h) {

@@ -17,7 +17,8 @@ public class Npc extends Entity {
 
     public final String name;
     public final int role;
-    public final int outfitColor, pantsColor, hairColor, hairStyle, skinColor;
+    public int outfitColor;
+    public final int pantsColor, hairColor, hairStyle, skinColor;
 
     // هوش مصنوعی حرکت
     private static final int ST_IDLE = 0, ST_WALK = 1;
