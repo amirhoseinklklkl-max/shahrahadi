@@ -17,7 +17,7 @@ public class Npc extends Entity {
 
     public final String name;
     public final int role;
-    public int outfitColor;
+    public int outfitColor;   // قابل تغییر (مثلاً رنگ لباس مدیرها)
     public final int pantsColor, hairColor, hairStyle, skinColor;
 
     // هوش مصنوعی حرکت

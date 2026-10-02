@@ -83,6 +83,7 @@ public class UIManager {
         textP.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
         textP.setTextAlign(Paint.Align.CENTER);
         tp.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        // جهت متن راست‌به‌چپ در StaticLayout.Builder تنظیم می‌شود
     }
 
     public void layout(int w, int h) {

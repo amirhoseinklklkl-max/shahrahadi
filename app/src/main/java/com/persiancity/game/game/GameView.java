@@ -80,7 +80,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         sprites = new SpriteLib();
         ui = new UIManager(this);
         miniMap = new MiniMap();
-        miniMap.buildFromWorld(world.tileType, 0f);
+        miniMap.buildFromWorld(world.tileType);
         jobs = new JobSystem(world, rng, this);
         missions = new MissionSystem(world, rng);
         shop = new ShopSystem(this);
@@ -114,9 +114,14 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        ui.layout(width, height);
-        darkness = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        darknessCanvas = new Canvas(darkness);
+        try {
+            ui.layout(width, height);
+            if (width > 0 && height > 0) {
+                darkness = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                darknessCanvas = new Canvas(darkness);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     @Override
@@ -125,13 +130,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     public void resumeGame() {
-        if (getWidth() > 0 && getHeight() > 0) {
-            ui.layout(getWidth(), getHeight());
-            if (darkness == null || darkness.getWidth() != getWidth()
-                    || darkness.getHeight() != getHeight()) {
-                darkness = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
-                darknessCanvas = new Canvas(darkness);
+        try {
+            if (getWidth() > 0 && getHeight() > 0) {
+                ui.layout(getWidth(), getHeight());
+                if (darkness == null || darkness.getWidth() != getWidth()
+                        || darkness.getHeight() != getHeight()) {
+                    darkness = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
+                    darknessCanvas = new Canvas(darkness);
+                }
             }
+        } catch (Throwable ignored) {
         }
         if (thread != null && thread.isRunning()) return;
         thread = new GameThread(getHolder(), this);
@@ -266,27 +274,38 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
+        if (e == null) return true;
         float x = e.getX(), y = e.getY();
+        try {
+            handleTouch(e.getActionMasked(), x, y);
+        } catch (Throwable ignored) {
+            // هیچ لمسی نباید بازی را ببندد
+            lastTouchY = -1f;
+            joystick.reset();
+        }
+        return true;
+    }
 
-        switch (e.getActionMasked()) {
+    private void handleTouch(int action, float x, float y) {
+        switch (action) {
             case MotionEvent.ACTION_DOWN:
                 if (ui.uiState == UIManager.UI_PLAY) {
                     if (pauseBtnRect != null && pauseBtnRect.contains(x, y)) {
                         fx("click");
                         openPauseMenu();
-                        return true;
+                        return;
                     }
                     if (actionBtnRect != null && actionBtnRect.contains(x, y)) {
                         doContextAction();
-                        return true;
+                        return;
                     }
                     if (hornBtnRect != null && hornBtnRect.contains(x, y)) {
                         SoundManager.play("horn");
-                        return true;
+                        return;
                     }
                     joystick.onTouchDown(x, y, getWidth(), getHeight());
                 }
-                return true;
+                return;
 
             case MotionEvent.ACTION_MOVE:
                 if (ui.uiState == UIManager.UI_PLAY) {
@@ -297,7 +316,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                     ui.onTouchScroll(x, y, dy);
                 }
                 lastTouchY = y;
-                return true;
+                return;
 
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
@@ -307,9 +326,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                     ui.onTouchUp(x, y);
                 }
                 lastTouchY = -1;
-                return true;
+                return;
+            default:
+                break;
         }
-        return true;
     }
 
     private float lastTouchY = -1f;

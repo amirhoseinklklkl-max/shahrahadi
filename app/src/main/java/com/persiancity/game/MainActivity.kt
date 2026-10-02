@@ -75,7 +75,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openGame() {
+        // توجه: finish() صدا نمی‌زنیم؛ اگر بازی خطایی داشت، کاربر به همین منو برمی‌گردد
+        // و دکمه «خروج به منوی اصلی» داخل بازی هم درست کار می‌کند.
         startActivity(Intent(this, GameActivity::class.java))
-        finish()
     }
 }

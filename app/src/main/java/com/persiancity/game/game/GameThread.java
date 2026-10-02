@@ -44,12 +44,13 @@ public class GameThread extends Thread {
                         view.render(c);
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Throwable ignored) {
+                // هیچ خطایی نباید بازی را ببندد؛ فریم بعدی ادامه می‌دهد
             } finally {
                 if (c != null) {
                     try {
                         holder.unlockCanvasAndPost(c);
-                    } catch (Exception ignored) {
+                    } catch (Throwable ignored) {
                     }
                 }
             }

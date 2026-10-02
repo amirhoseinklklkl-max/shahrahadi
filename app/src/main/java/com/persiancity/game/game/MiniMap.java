@@ -25,28 +25,35 @@ public class MiniMap {
         paint.setAntiAlias(true);
     }
 
-    public void buildFromWorld(int[][] tileType, float padding) {
-        // tileType: 0=ساختمان 1=جاده 2=چمن 3=پارک 4=آب 5=پیاده‌رو
-        int pw = G.MAP_W;
-        int ph = G.MAP_H;
-        int[] colors = {
-                0xFFEF9A9A, // ساختمان
-                0xFF757575, // جاده
-                0xFFA5D6A7, // چمن
-                0xFF66BB6A, // پارک
-                0xFF64B5F6, // آب
-                0xFFBDBDBD  // پیاده‌رو
-        };
-        Bitmap bmp = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bmp);
-        for (int y = 0; y < ph; y++) {
-            for (int x = 0; x < pw; x++) {
-                int t = tileType[y][x];
-                paint.setColor(colors[t]);
-                c.drawPoint(x, y, paint);
+    public void buildFromWorld(int[][] tileType) {
+        // tileType: 0=ساختمان 1=جاده 2=چمن 3=پارک 4=آب 5=پیاده‌رو 6=مسیر پارک
+        try {
+            int pw = G.MAP_W;
+            int ph = G.MAP_H;
+            int[] colors = {
+                    0xFFEF9A9A, // ساختمان
+                    0xFF757575, // جاده
+                    0xFFA5D6A7, // چمن
+                    0xFF66BB6A, // پارک
+                    0xFF64B5F6, // آب
+                    0xFFBDBDBD, // پیاده‌رو
+                    0xFFE6C99A  // مسیر پارک (T_PATH)
+            };
+            Bitmap bmp = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888);
+            Canvas c = new Canvas(bmp);
+            for (int y = 0; y < ph; y++) {
+                for (int x = 0; x < pw; x++) {
+                    int t = tileType[y][x];
+                    if (t < 0 || t >= colors.length) t = World.T_GRASS;   // محافظ ضد کرش
+                    paint.setColor(colors[t]);
+                    c.drawPoint(x, y, paint);
+                }
             }
+            mapBitmap = bmp;
+        } catch (Throwable ignored) {
+            // مینی‌مپ حیاتی نیست؛ اگر خطایی شد بازی بدون نقشه باز شود
+            mapBitmap = null;
         }
-        mapBitmap = bmp;
     }
 
     public void clearMarkers() {
