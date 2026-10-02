@@ -1,98 +1,106 @@
 package com.persiancity.game.game;
 
 /**
- * ساختمان‌های شهر — هر ساختمان یک نوع دارد و بعضی‌ها قابل ورودند
+ * ساختمان‌های شهر — نوع، مکان، در و رنگ
  */
 public class Building {
+    public static final int HOME = 0;
+    public static final int BANK = 1;
+    public static final int HOSPITAL = 2;
+    public static final int SCHOOL = 3;
+    public static final int LIBRARY = 4;
+    public static final int RESTAURANT = 5;
+    public static final int CAFE = 6;
+    public static final int MARKET = 7;
+    public static final int TOYSTORE = 8;
+    public static final int CINEMA = 9;
+    public static final int ZOO = 10;
+    public static final int HELIPORT = 11;
+    public static final int POLICE = 12;
+    public static final int FIRE = 13;
+    public static final int TRAIN_STATION = 14;
 
-    // انواع ساختمان
-    public static final int HOME = 0;          // خانه بازیکن
-    public static final int HOUSE = 1;         // خانه همسایه‌ها (فقط تزئینی)
-    public static final int CLOTHES = 2;       // فروشگاه لباس
-    public static final int BARBER = 3;        // آرایشگاه
-    public static final int RESTAURANT = 4;    // رستوران (محیط داخلی دارد)
-    public static final int MARKET = 5;        // سوپرمارکت (محیط داخلی دارد)
-    public static final int CARSHOP = 6;       // نمایشگاه ماشین
-    public static final int BIKESHOP = 7;      // نمایشگاه موتور
-    public static final int GARAGE = 8;        // گاراژ تیونینگ
-    public static final int JOBCENTER = 9;     // اداره مشاغل
-    public static final int CAFE = 10;         // کافه
-    public static final int CINEMA = 11;       // سینما
-    public static final int HOSPITAL = 12;     // بیمارستان
-    public static final int BANK = 13;         // بانک
-    public static final int TOYSTORE = 14;     // اسباب‌بازی‌فروشی
-    public static final int TAXISTAND = 15;    // ایستگاه تاکسی
-    public static final int SCHOOL = 16;       // مدرسه (تزئینی)
-    public static final int POLICE = 17;       // پلیس‌خانه (تزئینی)
-    public static final int LIBRARY = 18;      // کتابخانه
-    public static final int MOSQUE = 19;       // مسجد (تزئینی)
-    public static final int STADIUM = 20;      // ورزشگاه (تزئینی)
-    public static final int GAS = 21;          // پمپ بنزین (تزئینی)
-    public static final int KIOSK = 22;        // دکه روزنامه
-
-    public final int tileX, tileY, tileW, tileH;
     public final int type;
-    public final String name;      // تابلوی فارسی
-    public final int wallColor, roofColor, accentColor;
+    public float x, y;          // گوشه بالا-چپ
+    public float w, h;          // اندازه
+    public float doorX, doorY;  // مرکز در (پایین ساختمان)
+    public int wallColor;
+    public int roofColor;
 
-    // محاسبه‌شده در پیکسل
-    public final float px, py, pw, ph;
-    public float doorX, doorY;     // محل جلوی در (پیاده‌رو جلوی ساختمان)
-    public boolean doorUp;         // در رو به بالا است؟
-
-    public Building(int tileX, int tileY, int tileW, int tileH, int type, String name,
-                    int wallColor, int roofColor, int accentColor, boolean doorUp) {
-        this.tileX = tileX;
-        this.tileY = tileY;
-        this.tileW = tileW;
-        this.tileH = tileH;
+    public Building(int type, float x, float y, float w, float h, int wallColor, int roofColor) {
         this.type = type;
-        this.name = name;
+        this.x = x;
+        this.y = y;
+        this.w = w;
+        this.h = h;
         this.wallColor = wallColor;
         this.roofColor = roofColor;
-        this.accentColor = accentColor;
-        this.doorUp = doorUp;
-        this.px = tileX * G.TILE;
-        this.py = tileY * G.TILE;
-        this.pw = tileW * G.TILE;
-        this.ph = tileH * G.TILE;
-        float cx = px + pw / 2f;
-        if (doorUp) {
-            doorX = cx;
-            doorY = py - G.TILE * 0.7f;
-        } else {
-            doorX = cx;
-            doorY = py + ph + G.TILE * 0.7f;
+        this.doorX = x + w / 2f;
+        this.doorY = y + h;
+    }
+
+    public static String nameOf(int type) {
+        switch (type) {
+            case HOME: return "خانه";
+            case BANK: return "بانک شادی";
+            case HOSPITAL: return "بیمارستان مهربانی";
+            case SCHOOL: return "مدرسه دانش";
+            case LIBRARY: return "کتابخانه نور";
+            case RESTAURANT: return "رستوران خوشمزه";
+            case CAFE: return "کافه شکلات";
+            case MARKET: return "سوپرمارکت فراوان";
+            case TOYSTORE: return "فروشگاه اسباب‌بازی";
+            case CINEMA: return "سینما ستاره";
+            case ZOO: return "باغ‌وحش شادی";
+            case HELIPORT: return "هلی‌پورت شهر";
+            case POLICE: return "کلانتری ۱۰";
+            case FIRE: return "آتش‌نشانی";
+            case TRAIN_STATION: return "ایستگاه قطار";
+            default: return "ساختمان";
         }
     }
 
-    public boolean isEnterable() {
-        return type != HOUSE && type != SCHOOL && type != POLICE && type != MOSQUE
-                && type != STADIUM && type != GAS && type != KIOSK;
+    public String name() {
+        return nameOf(type);
     }
 
     /**
-     * متن تابلوی راهنمای جلوی در
+     * متن اطلاعاتی هر ساختمان برای دکمه «نگاه کن»
      */
-    public String flavorText() {
+    public String info() {
         switch (type) {
-            case HOUSE:
-                return "اینجا خونه‌ی همسایه‌هاست. زنگ نزن تا بیدار نشن!";
+            case BANK:
+                return "🏦 بانک شادی\nاینجا پول‌هایت را نگه می‌دارند. هر روز که کار کنی سکه‌های بیشتری داری!\nکارمند بانک: «پول‌هایت را دور نریز، پس‌انداز کن!»";
+            case HOSPITAL:
+                return "🏥 بیمارستان مهربانی\nاگر گرسنه یا خسته شوی، دکترهای مهربان تو را درمان می‌کنند.\nدکتر: «میوه بخور و زود بخواب تا هیچ‌وقت مریض نشوی!»";
             case SCHOOL:
-                return "مدرسه «دانش» — زنگ خورده، همه خوشحالن!";
-            case POLICE:
-                return "پلیس‌خانه «امنیت» — نگهبان شهر بهت لبخند می‌زنه.";
-            case MOSQUE:
-                return "مسجد «نور» — جای آرامش و مهربانی.";
-            case STADIUM:
-                return "ورزشگاه «تلاش» — امروز مسابقه‌ای نیست.";
-            case GAS:
-                return "پمپ بنزین «برق» — ماشین‌ها اینجا سوخت می‌گیرن.";
-            case KIOSK:
-                return "دکه روزنامه — خبرهای خوب شهر!";
+                return "🏫 مدرسه دانش\nجای یادگیری چیزهای تازه! ریاضی، خواندن و نقاشی.\nمعلم: «هر روز به مدرسه بیا تا باهوش‌تر شوی!»";
             case LIBRARY:
-                return "کتابخانه «کتاب» — ساکت باش! بچه‌ها درس می‌خونن.";
+                return "📚 کتابخانه نور\nهزاران کتاب قصه و علمی. آرام باش و کتاب بخوان!\nکتابدار: «کتاب خواندن مثل پرواز کردن است!»";
+            case RESTAURANT:
+                return "🍽 رستوران خوشمزه\nغذاهای خوشمزه بخر و بخور یا به‌عنوان گارسون کار کن و انعام بگیر!";
+            case CAFE:
+                return "🍫 کافه شکلات\nداغ‌ترین شکلات داغ شهر با کیک شکلاتی!\nکافه‌دار: «شکلات = خوشحالی!»";
+            case MARKET:
+                return "🛒 سوپرمارکت فراوان\nمیوه و خوراکی بخر یا پشت صندوق کار کن.";
+            case TOYSTORE:
+                return "🧸 فروشگاه اسباب‌بازی\nبهترین اسباب‌بازی‌های شهر! عروسک، ماشین، لگو...";
+            case CINEMA:
+                return "🎬 سینما ستاره\nبلیط بخر، روی صندلی قرمز بنشین و کارتون تماشا کن!\nامروز: ماشین‌های مسابقه، ماهی رنگارنگ، موشک فضایی";
+            case ZOO:
+                return "🦁 باغ‌وحش شادی\nشیر، فیل، میمون، گورخر، پنگوئن و زرافه اینجا زندگی می‌کنند!\nجلوی هر حیوان وایسا و دکمه نگاه کن را بزن تا درباره‌اش بخوانی.";
+            case HELIPORT:
+                return "🚁 هلی‌پورت شهر\nمی‌توانی هلیکوپتر شخصی بخری و از بالا شهر را ببینی!";
+            case POLICE:
+                return "👮 کلانتری ۱۰\nنگهبانان امنیت شهر. اگر گم شدی اینجا کمک می‌گیرند.";
+            case FIRE:
+                return "🚒 آتش‌نشانی\nماشین‌های قرمز قهرمان! همیشه آماده کمک‌رسانی.";
+            case TRAIN_STATION:
+                return "🚂 ایستگاه قطار شهری\nقطار شادی همیشه دور شهر می‌چرخد!\n• با بلیط ۲۰۰ تومانی یک دور کامل سفر کن\n• یا کل قطار را بخر و خودت راننده باش!";
+            case HOME:
+                return "🏠 خانه تو!\nاینجا می‌توانی استراحت کنی و انرژیت را پر کنی.\nتخت خوابت منتظر توست!";
+            default:
+                return "یک ساختمان زیبا در شهر شادی.";
         }
-        return "";
     }
 }

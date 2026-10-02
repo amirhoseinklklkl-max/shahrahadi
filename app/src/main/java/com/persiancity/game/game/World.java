@@ -1,17 +1,20 @@
 package com.persiancity.game.game;
 
+import com.persiancity.game.SoundManager;
+
 import android.graphics.Canvas;
 import android.graphics.Paint;
+
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Random;
 
 /**
- * دنیای بازی — شهر بزرگ + محیط داخلی مغازه‌ها
+ * دنیای بازی: تایل‌ها، ساختمان‌ها، شهروندها، خودروها، دود، محیط داخلی
  */
 public class World {
-
-    // انواع تایل
+    // نوع تایل‌ها
     public static final int T_BUILDING = 0;
     public static final int T_ROAD = 1;
     public static final int T_GRASS = 2;
@@ -21,104 +24,77 @@ public class World {
     public static final int T_PATH = 6;
 
     public int[][] tileType = new int[G.MAP_H][G.MAP_W];
-    public int[][] roadAxis = new int[G.MAP_H][G.MAP_W]; // 0=هیچ 1=افقی 2=عمودی 3=چهارراه
-    public boolean[][] solid = new boolean[G.MAP_H][G.MAP_W];
 
     public final ArrayList<Building> buildings = new ArrayList<>();
-    public final ArrayList<float[]> trees = new ArrayList<>();          // x, y, size
-    public final ArrayList<float[]> streetlights = new ArrayList<>();   // x, y
-    public final ArrayList<float[]> parkingSpots = new ArrayList<>();   // x, y, angleDeg
-    public final ArrayList<float[]> grassTufts = new ArrayList<>();     // تزئین چمن
-
     public final ArrayList<Npc> cityNpcs = new ArrayList<>();
     public final ArrayList<Npc> interiorNpcs = new ArrayList<>();
     public final ArrayList<Vehicle> vehicles = new ArrayList<>();
+    public final ArrayList<float[]> smoke = new ArrayList<>();      // x,y,vx,vy,life,lifeMax,size
+    public final ArrayList<float[]> trees = new ArrayList<>();      // x,y,size
+    public final ArrayList<float[]> trafficLanes = new ArrayList<>(); // axis,coord,min,max
 
-    public Interior interior = null;   // اگر مخالف null باشد داخل مغازه‌ایم
-    public DayNight dayNight = new DayNight();
-    public float fountainX, fountainY;
+    public Interior interior = null;
+    public final DayNight dayNight = new DayNight();
 
-    private final Paint paint = new Paint();
+    public RailPath railPath = null;
+    public float trainStationX = -1f, trainStationY = -1f;   // نقطه سکوی ایستگاه
+
+    public float fountainX = 0f, fountainY = 0f;
+    public float waterfallX = 0f, waterfallY = 0f;
+
+    public float spawnX = G.WORLD_W / 2f, spawnY = G.WORLD_H / 2f;
+
+    public final Paint paint = new Paint();
     private final Random rnd = new Random();
-    public CityBuilder builder;
+    private final float[] tmpPoint = new float[2];
 
-    public World() {
-        builder = new CityBuilder(this);
-        builder.build();
-    }
+    // ================= پرس‌وجو =================
 
-    // ---------------- برخورد و مسیر ----------------
-
-    public boolean collides(float x, float y, float r) {
-        if (interior != null) {
-            return interior.collides(x, y, r);
-        }
-        if (x - r < 0 || y - r < 0 || x + r >= G.WORLD_W || y + r >= G.WORLD_H) return true;
+    public boolean isBlocked(float x, float y, float r) {
         int x0 = (int) ((x - r) / G.TILE), x1 = (int) ((x + r) / G.TILE);
         int y0 = (int) ((y - r) / G.TILE), y1 = (int) ((y + r) / G.TILE);
+        if (x - r < 0 || y - r < 0 || x + r >= G.WORLD_W || y + r >= G.WORLD_H) return true;
         for (int ty = y0; ty <= y1; ty++) {
             for (int tx = x0; tx <= x1; tx++) {
-                if (solid[ty][tx]) return true;
+                if (tx < 0 || ty < 0 || tx >= G.MAP_W || ty >= G.MAP_H) return true;
+                int t = tileType[ty][tx];
+                if (t == T_BUILDING || t == T_WATER) return true;
             }
         }
         return false;
     }
 
-    public boolean isRoadPoint(float x, float y) {
-        int tx = (int) (x / G.TILE), ty = (int) (y / G.TILE);
-        if (tx < 0 || ty < 0 || tx >= G.MAP_W || ty >= G.MAP_H) return false;
-        return tileType[ty][tx] == T_ROAD;
-    }
-
-    public boolean walkableTile(int tx, int ty, boolean allowRoad) {
-        if (tx < 0 || ty < 0 || tx >= G.MAP_W || ty >= G.MAP_H) return false;
-        if (solid[ty][tx]) return false;
-        int t = tileType[ty][tx];
-        if (t == T_ROAD) return allowRoad;
-        return t == T_GRASS || t == T_PARK || t == T_SIDEWALK || t == T_PATH;
-    }
-
     /**
-     * نقطه قابل راه‌رفن تصادفی نزدیک (برای NPCها)
+     * برخورد با خودروها — بازیکن نمی‌تواند از روی ماشین‌ها رد شود.
+     * قطار در ۴ نقطه (لوکوموتیو + ۳ واگن) مانع است.
      */
-    public float[] randomWalkableNear(float x, float y, float maxDist, boolean allowRoad) {
-        for (int i = 0; i < 24; i++) {
-            float a = rnd.nextFloat() * (float) (Math.PI * 2);
-            float d = 60f + rnd.nextFloat() * maxDist;
-            float nx = x + (float) Math.cos(a) * d;
-            float ny = y + (float) Math.sin(a) * d;
-            int tx = (int) (nx / G.TILE), ty = (int) (ny / G.TILE);
-            if (walkableTile(tx, ty, allowRoad)) {
-                return new float[]{tx * G.TILE + G.TILE / 2f, ty * G.TILE + G.TILE / 2f};
+    public boolean vehicleBlocks(float x, float y, float r) {
+        for (int i = 0; i < vehicles.size(); i++) {
+            Vehicle v = vehicles.get(i);
+            if (!v.isActive()) continue;
+            if (v.isFlying()) continue;   // هلیکوپتر در حال پرواز مانع نیست
+            if (v.mode == Vehicle.MODE_PLAYER) continue;   // وسیله خودت مانع نیست
+
+            if (v.type == Vehicle.CAR_TRAIN) {
+                for (int w = 0; w < 4; w++) {
+                    v.pointAt(this, w, tmpPoint);
+                    if (G.dist(x, y, tmpPoint[0], tmpPoint[1]) < 46f + r) return true;
+                }
+            } else {
+                float br = v.blockRadius();
+                if (Math.abs(v.x - x) < br + r && Math.abs(v.y - y) < br + r) return true;
             }
         }
-        return null;
+        return false;
     }
 
-    /**
-     * نزدیک‌ترین جای پارک به یک نقطه
-     */
-    public float[] nearestParking(float x, float y) {
-        float[] best = null;
-        float bestD = Float.MAX_VALUE;
-        for (float[] p : parkingSpots) {
-            float d = G.dist(x, y, p[0], p[1]);
-            if (d < bestD) {
-                bestD = d;
-                best = p;
-            }
-        }
-        return best;
-    }
-
-    /**
-     * ساختمانی که جلوی درش ایستاده‌ایم
-     */
-    public Building buildingNearDoor(float x, float y) {
-        for (Building b : buildings) {
-            if (G.dist(x, y, b.doorX, b.doorY) < G.TILE * 1.4f) return b;
-        }
-        return null;
+    public void addSmoke(float x, float y, float size) {
+        smoke.add(new float[]{
+            x, y,
+            (rnd.nextFloat() - 0.5f) * 24f, -26f - rnd.nextFloat() * 22f,
+            2.0f, 2.0f, size
+        });
+        if (smoke.size() > 90) smoke.remove(0);
     }
 
     public Building buildingByType(int type) {
@@ -128,192 +104,307 @@ public class World {
         return null;
     }
 
-    // ---------------- ورود و خروج مغازه ----------------
+    /**
+     * نزدیک‌ترین ساختمانی که درِاش نزدیک بازیکن است
+     */
+    public Building buildingNearDoor(float x, float y, float maxDist) {
+        Building best = null;
+        float bestD = maxDist;
+        for (Building b : buildings) {
+            float d = G.dist(x, y, b.doorX, b.doorY + 34f);
+            if (d < bestD) {
+                bestD = d;
+                best = b;
+            }
+        }
+        return best;
+    }
+
+    public float[] randomWalkableNear(float x, float y, float range, boolean onRoad) {
+        for (int i = 0; i < 24; i++) {
+            float px = G.clamp(x + (rnd.nextFloat() - 0.5f) * 2f * range, 80f, G.WORLD_W - 80f);
+            float py = G.clamp(y + (rnd.nextFloat() - 0.5f) * 2f * range, 80f, G.WORLD_H - 80f);
+            int t = tileAt(px, py);
+            boolean ok = onRoad ? (t == T_ROAD) : (t == T_GRASS || t == T_SIDEWALK || t == T_PARK || t == T_PATH);
+            if (ok && !isBlocked(px, py, 16f)) {
+                return new float[]{px, py};
+            }
+        }
+        return null;
+    }
+
+    public int tileAt(float x, float y) {
+        int tx = (int) (x / G.TILE), ty = (int) (y / G.TILE);
+        if (tx < 0 || ty < 0 || tx >= G.MAP_W || ty >= G.MAP_H) return T_BUILDING;
+        return tileType[ty][tx];
+    }
+
+    /**
+     * اسپاون تصادفی خودرو در یکی از لاین‌های ترافیک (دور از بازیکن)
+     */
+    public void randomLaneSpawn(Vehicle v) {
+        if (trafficLanes.isEmpty()) return;
+        float[] lane = trafficLanes.get(rnd.nextInt(trafficLanes.size()));
+        v.axis = lane[0] > 0.5f ? 'V' : 'H';
+        v.laneDir = rnd.nextBoolean() ? 1f : -1f;
+        v.laneMin = lane[2];
+        v.laneMax = lane[3];
+        float along = lane[2] + rnd.nextFloat() * (lane[3] - lane[2]);
+        if (v.axis == 'H') {
+            v.y = lane[1];
+            v.x = along;
+        } else {
+            v.x = lane[1];
+            v.y = along;
+        }
+    }
+
+    // ================= ورود و خروج محیط =================
 
     public void enterInterior(Building b, Player p) {
-        if (b.type == Building.RESTAURANT) {
-            interior = Interior.makeRestaurant(b);
-            Npc manager = new Npc(interior.counterX, interior.counterY + G.TILE * 1.2f, "آقای زنجبیل",
-                    Npc.ROLE_RESTAURANT_MANAGER, rnd);
-            manager.outfitColor = 0xFF8D6E63;
-            interiorNpcs.add(manager);
-        } else if (b.type == Building.MARKET) {
-            interior = Interior.makeMarket(b);
-            Npc manager = new Npc(interior.counterX, interior.counterY + G.TILE * 1.1f, "خانم فراوان",
-                    Npc.ROLE_MARKET_MANAGER, rnd);
-            manager.outfitColor = 0xFF26A69A;
-            interiorNpcs.add(manager);
-        } else {
-            return;
-        }
+        interior = Interior.createFor(b);
+        if (interior == null) return;
         p.x = interior.doorX;
-        p.y = interior.doorY - G.TILE * 1.2f;
+        p.y = interior.roomH - 34f;
+        p.driving = null;
+        p.ridingTrain = false;
+        interiorNpcs.clear();
+        // چند شهروند داخل مغازه‌ها
+        if (interior.floorType.equals("restaurant") || interior.floorType.equals("market") || interior.floorType.equals("cafe")) {
+            Npc.scatter(interiorNpcs, this, 3, interior.roomW / 2f, interior.roomH / 2f, interior.roomW);
+        }
+        SoundManager.play("door");
     }
 
     public void exitInterior(Player p) {
         if (interior == null) return;
-        Building b = interior.from;
+        Building b = interior.building;
         interior = null;
         interiorNpcs.clear();
-        p.x = b.doorX;
-        p.y = b.doorY;
+        if (b != null) {
+            p.x = b.doorX;
+            p.y = b.doorY + 40f;
+        } else {
+            p.x = spawnX;
+            p.y = spawnY;
+        }
+        SoundManager.play("door");
     }
 
-    // ---------------- به‌روزرسانی ----------------
+    // ================= به‌روزرسانی =================
 
-    public void update(float dt, Player player) {
+    public void update(float dt, Player p) {
         dayNight.update(dt);
 
+        // دود
+        for (int i = smoke.size() - 1; i >= 0; i--) {
+            float[] s = smoke.get(i);
+            s[0] += s[2] * dt;
+            s[1] += s[3] * dt;
+            s[4] -= dt;
+            s[6] += dt * 6f;
+            if (s[4] <= 0f) smoke.remove(i);
+        }
+
         if (interior != null) {
-            for (Npc n : interiorNpcs) n.update(dt, this);
-        } else {
-            for (Npc n : cityNpcs) n.update(dt, this);
-            for (Vehicle v : vehicles) {
-                if (v.mode == Vehicle.MODE_TRAFFIC) {
-                    Entity playerEnt = player.driving != null ? player.driving : player;
-                    v.trafficUpdate(dt, this, playerEnt);
+            for (int i = 0; i < interiorNpcs.size(); i++) {
+                interiorNpcs.get(i).update(dt, this);
+            }
+            return;   // داخل ساختمان ترافیک به‌روز نمی‌شود
+        }
+
+        // شهروندها
+        for (int i = 0; i < cityNpcs.size(); i++) {
+            cityNpcs.get(i).update(dt, this);
+        }
+
+        // خودروها و قطار
+        for (int i = 0; i < vehicles.size(); i++) {
+            vehicles.get(i).update(dt, this);
+        }
+
+        // تصادف خودروها با هم: دود + محو ۳ ثانیه + ظاهر شدن جای دیگر
+        for (int i = 0; i < vehicles.size(); i++) {
+            Vehicle a = vehicles.get(i);
+            if (a.mode != Vehicle.MODE_TRAFFIC || !a.isActive()) continue;
+            for (int j = i + 1; j < vehicles.size(); j++) {
+                Vehicle b = vehicles.get(j);
+                if (b.mode != Vehicle.MODE_TRAFFIC || !b.isActive()) continue;
+                if (Math.abs(a.x - b.x) < 54f && Math.abs(a.y - b.y) < 54f) {
+                    float mx = (a.x + b.x) / 2f, my = (a.y + b.y) / 2f;
+                    for (int k = 0; k < 6; k++) {
+                        addSmoke(mx + (rnd.nextFloat() - 0.5f) * 40f, my + (rnd.nextFloat() - 0.5f) * 30f, 12f);
+                    }
+                    SoundManager.play("crash");
+                    a.deadTimer = 3f;
+                    b.deadTimer = 3f;
                 }
             }
         }
     }
 
-    // ---------------- ترسیم ----------------
+    // ================= رسم شهر =================
 
-    public void draw(Canvas c, SpriteLib sprites, Camera cam, float viewW, float viewH) {
-        if (interior != null) {
-            drawInterior(c, sprites);
-            drawEntities(c, sprites, false);
-            return;
-        }
+    public void draw(Canvas c, SpriteLib sprites, float cx, float cy, float vw, float vh) {
+        int tx0 = Math.max(0, (int) ((cx - vw / 2f) / G.TILE) - 1);
+        int ty0 = Math.max(0, (int) ((cy - vh / 2f) / G.TILE) - 1);
+        int tx1 = Math.min(G.MAP_W - 1, (int) ((cx + vw / 2f) / G.TILE) + 1);
+        int ty1 = Math.min(G.MAP_H - 1, (int) ((cy + vh / 2f) / G.TILE) + 1);
 
-        float s = cam.scale;
-        float halfW = viewW / (2f * s);
-        float halfH = viewH / (2f * s);
-        int tx0 = Math.max(0, (int) ((cam.x - halfW) / G.TILE) - 1);
-        int tx1 = Math.min(G.MAP_W - 1, (int) ((cam.x + halfW) / G.TILE) + 1);
-        int ty0 = Math.max(0, (int) ((cam.y - halfH) / G.TILE) - 1);
-        int ty1 = Math.min(G.MAP_H - 1, (int) ((cam.y + halfH) / G.TILE) + 1);
-
-        // زمین
+        // تایل‌ها
         for (int ty = ty0; ty <= ty1; ty++) {
             for (int tx = tx0; tx <= tx1; tx++) {
-                drawTile(c, tx, ty);
+                drawTile(c, tx, ty, tileType[ty][tx]);
             }
         }
 
-        // جاده: خط‌چین وسط
-        paint.setColor(G.COL_ROAD_LINE);
-        paint.setStrokeWidth(4f);
-        for (int ty = ty0; ty <= ty1; ty++) {
-            for (int tx = tx0; tx <= tx1; tx++) {
-                if (tileType[ty][tx] != T_ROAD) continue;
-                int ax = roadAxis[ty][tx];
-                float px = tx * G.TILE, py = ty * G.TILE;
-                if ((ax & 1) != 0 && (tx % 2 == 0)) {
-                    c.drawLine(px, py + G.TILE / 2f, px + G.TILE, py + G.TILE / 2f, paint);
-                }
-                if ((ax & 2) != 0 && (ty % 2 == 0)) {
-                    c.drawLine(px + G.TILE / 2f, py, px + G.TILE / 2f, py + G.TILE, paint);
-                }
-            }
+        // ریل قطار
+        if (railPath != null) {
+            sprites.drawRails(c, railPath);
+        }
+
+        // درخت‌ها
+        for (int i = 0; i < trees.size(); i++) {
+            float[] t = trees.get(i);
+            if (t[0] < tx0 * G.TILE - 80f || t[0] > (tx1 + 1) * G.TILE + 80f) continue;
+            if (t[1] < ty0 * G.TILE - 80f || t[1] > (ty1 + 1) * G.TILE + 80f) continue;
+            sprites.drawTree(c, t[0], t[1], t[2]);
+        }
+
+        // فواره و آبشار پارک
+        if (fountainX > 0f) {
+            sprites.drawFountain(c, fountainX, fountainY, dayNight.minutes);
+        }
+        if (waterfallX > 0f) {
+            sprites.drawWaterfall(c, waterfallX, waterfallY, dayNight.minutes);
         }
 
         // ساختمان‌ها
-        for (Building b : buildings) {
-            if (b.px > (tx1 + 1) * G.TILE || b.px + b.pw < tx0 * G.TILE) continue;
-            if (b.py > (ty1 + 1) * G.TILE || b.py + b.ph < ty0 * G.TILE) continue;
-            sprites.drawBuilding(c, b);
+        for (int i = 0; i < buildings.size(); i++) {
+            Building b = buildings.get(i);
+            if (b.x > (tx1 + 1) * G.TILE + 60f || b.x + b.w < tx0 * G.TILE - 60f) continue;
+            if (b.y > (ty1 + 1) * G.TILE + 60f || b.y + b.h < ty0 * G.TILE - 60f) continue;
+            sprites.drawBuilding(c, b, dayNight.minutes);
         }
 
-        // چراغ‌های خیابان
-        for (float[] l : streetlights) {
-            if (l[0] < tx0 * G.TILE - 60f || l[0] > (tx1 + 1) * G.TILE + 60f) continue;
-            if (l[1] < ty0 * G.TILE - 60f || l[1] > (ty1 + 1) * G.TILE + 60f) continue;
-            sprites.drawStreetlight(c, l[0], l[1]);
+        // شهروندها
+        for (int i = 0; i < cityNpcs.size(); i++) {
+            Npc n = cityNpcs.get(i);
+            sprites.drawPerson(c, n.x, n.y, n.dir, n.anim,
+                    n.shirt, n.pants, n.skin, 0xFF3E2723, n.hairStyle, -1, false, n.gender);
         }
 
-        drawEntities(c, sprites, true);
-
-        // فواره پارک
-        drawFountain(c, sprites);
-    }
-
-    private void drawTile(Canvas c, int tx, int ty) {
-        int t = tileType[ty][tx];
-        float px = tx * G.TILE, py = ty * G.TILE;
-        switch (t) {
-            case T_ROAD:
-                paint.setColor(G.COL_ROAD);
-                c.drawRect(px, py, px + G.TILE, py + G.TILE, paint);
-                break;
-            case T_SIDEWALK:
-                paint.setColor(G.COL_SIDEWALK);
-                c.drawRect(px, py, px + G.TILE, py + G.TILE, paint);
-                paint.setColor(0xFFB0B7BF);
-                paint.setStrokeWidth(2f);
-                c.drawLine(px, py + G.TILE, px + G.TILE, py + G.TILE, paint);
-                break;
-            case T_PARK:
-                paint.setColor(0xFF8BC34A);
-                c.drawRect(px, py, px + G.TILE, py + G.TILE, paint);
-                break;
-            case T_PATH:
-                paint.setColor(G.COL_PATH);
-                c.drawRect(px, py, px + G.TILE, py + G.TILE, paint);
-                break;
-            case T_WATER:
-                paint.setColor(G.COL_WATER);
-                c.drawRect(px, py, px + G.TILE, py + G.TILE, paint);
-                break;
-            default: // چمن و زیر ساختمان
-                paint.setColor(((tx + ty) % 2 == 0) ? G.COL_GRASS : G.COL_GRASS2);
-                c.drawRect(px, py, px + G.TILE, py + G.TILE, paint);
-                break;
-        }
-    }
-
-    private void drawEntities(Canvas c, SpriteLib sprites, boolean city) {
-        sprites.nightMode = dayNight.isNight();
-
-        if (city) {
-            // وسایل نقلیه
-            for (Vehicle v : vehicles) v.draw(c, sprites);
-        }
-
-        // NPCها
-        if (city) {
-            for (Npc n : cityNpcs) {
-                sprites.drawPerson(c, n.x, n.y, n.facing, n.animTime,
-                        n.outfitColor, n.pantsColor, n.skinColor, n.hairColor, n.hairStyle,
-                        -1, false);
-            }
-        } else {
-            for (Npc n : interiorNpcs) {
-                sprites.drawPerson(c, n.x, n.y, n.facing, n.animTime,
-                        n.outfitColor, n.pantsColor, n.skinColor, n.hairColor, n.hairStyle,
-                        -1, false);
-            }
-        }
-
-        // درخت‌ها (روی همه چیز برای عمق صحنه)
-        if (city) {
-            for (float[] t : trees) {
-                sprites.drawTree(c, t[0], t[1], t[2]);
+        // خودروها (قطار با واگن‌هایش)
+        for (int i = 0; i < vehicles.size(); i++) {
+            Vehicle v = vehicles.get(i);
+            if (!v.isActive()) continue;
+            if (v.type == Vehicle.CAR_TRAIN) {
+                sprites.drawTrain(c, v, railPath, dayNight.minutes);
+            } else {
+                sprites.drawVehicle(c, v, dayNight.minutes);
             }
         }
 
         // حباب حرف NPCها
-        sprites.drawBubbles(c, city ? cityNpcs : interiorNpcs);
+        sprites.drawBubbles(c, cityNpcs);
+
+        // دود
+        drawSmoke(c);
     }
 
-    private void drawFountain(Canvas c, SpriteLib sprites) {
-        if (tileType[33][50] != T_PATH) return; // فقط اگر پارک هست
-        sprites.drawFountain(c, fountainX, fountainY, dayNight.minutes);
+    private void drawTile(Canvas c, int tx, int ty, int t) {
+        float x = tx * G.TILE, y = ty * G.TILE;
+        switch (t) {
+            case T_ROAD:
+                paint.setColor(G.COL_ROAD);
+                c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
+                break;
+            case T_WATER:
+                paint.setColor(G.COL_WATER);
+                c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
+                paint.setColor(0x66FFFFFF);
+                float wave = (float) Math.sin((tx + ty) * 1.3f + dayNight.minutes * 0.5f) * 3f;
+                c.drawRect(x + 8f, y + 24f + wave, x + 30f, y + 28f + wave, paint);
+                c.drawRect(x + 34f, y + 42f - wave, x + 56f, y + 46f - wave, paint);
+                break;
+            case T_PARK:
+                paint.setColor(0xFF5DAE45);
+                c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
+                break;
+            case T_SIDEWALK:
+                paint.setColor(G.COL_SIDEWALK);
+                c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
+                paint.setColor(0x33000000);
+                c.drawLine(x, y + G.TILE / 2f, x + G.TILE, y + G.TILE / 2f, paint);
+                c.drawLine(x + G.TILE / 2f, y, x + G.TILE / 2f, y + G.TILE, paint);
+                break;
+            case T_PATH:
+                paint.setColor(G.COL_PATH);
+                c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
+                paint.setColor(0x22000000);
+                c.drawCircle(x + G.TILE * 0.3f, y + G.TILE * 0.6f, 2.5f, paint);
+                c.drawCircle(x + G.TILE * 0.7f, y + G.TILE * 0.3f, 2f, paint);
+                break;
+            case T_BUILDING:
+                paint.setColor(0xFF90A4AE);
+                c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
+                break;
+            default:
+                paint.setColor((tx + ty) % 2 == 0 ? G.COL_GRASS : G.COL_GRASS2);
+                c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
+                break;
+        }
+
+        // خطوط جاده زیباتر: خط‌چین وسط + خط عابر + ا方面
+        if (t == T_ROAD) {
+            boolean hRoad = tx > 0 && tileType[ty][tx - 1] == T_ROAD && tx < G.MAP_W - 1 && tileType[ty][tx + 1] == T_ROAD;
+            boolean vRoad = ty > 0 && tileType[ty - 1][tx] == T_ROAD && ty < G.MAP_H - 1 && tileType[ty + 1][tx] == T_ROAD;
+            paint.setColor(G.COL_ROAD_LINE);
+            paint.setStrokeWidth(2.5f);
+            if (hRoad && !vRoad) {
+                float dash = (tx % 2 == 0) ? G.TILE * 0.4f : 0f;
+                if (dash > 0f) c.drawLine(x + G.TILE * 0.1f, y + G.TILE / 2f, x + G.TILE * 0.1f + dash, y + G.TILE / 2f, paint);
+            } else if (vRoad && !hRoad) {
+                float dash = (ty % 2 == 0) ? G.TILE * 0.4f : 0f;
+                if (dash > 0f) c.drawLine(x + G.TILE / 2f, y + G.TILE * 0.1f, x + G.TILE / 2f, y + G.TILE * 0.1f + dash, paint);
+            }
+            // چاهک ملایم
+            if ((tx * 7 + ty * 13) % 29 == 0) {
+                paint.setColor(0x44000000);
+                c.drawCircle(x + G.TILE * 0.5f, y + G.TILE * 0.5f, 5f, paint);
+            }
+        }
     }
+
+    private void drawSmoke(Canvas c) {
+        for (int i = 0; i < smoke.size(); i++) {
+            float[] s = smoke.get(i);
+            float a = Math.max(0f, s[4] / s[5]);
+            int alpha = (int) (a * 150f);
+            float size = s[6] * (2f - a);
+            paint.setColor((alpha << 24) | 0x5A5A5A);
+            c.drawCircle(s[0], s[1], size, paint);
+            paint.setColor(((alpha / 2) << 24) | 0x8A8A8A);
+            c.drawCircle(s[0], s[1], size * 0.6f, paint);
+        }
+    }
+
+    // ================= رسم محیط داخلی =================
 
     public void drawInterior(Canvas c, SpriteLib sprites) {
+        // دیوار اطراف اتاق (به‌جای آسمان آبی!)
+        paint.setColor(interior.floorType.equals("zoo") ? 0xFFA5D6A7 : 0xFF6D4C41);
+        c.drawRect(-3000f, -3000f, interior.roomW + 3000f, interior.roomH + 3000f, paint);
+
         // کف
-        int floorColor = interior.floorType.equals("restaurant") ? 0xFFF5E1C8 : 0xFFE8EEF2;
+        int floorColor;
+        switch (interior.floorType) {
+            case "restaurant": floorColor = 0xFFF5E1C8; break;
+            case "zoo":        floorColor = 0xFFC8E6C9; break;
+            case "cinema":     floorColor = 0xFF37474F; break;
+            case "home":       floorColor = 0xFFFFE0B2; break;
+            default:           floorColor = 0xFFE8EEF2; break;
+        }
         paint.setColor(floorColor);
         c.drawRect(0, 0, interior.roomW, interior.roomH, paint);
 
@@ -337,17 +428,62 @@ public class World {
         c.drawRect(interior.doorX - G.TILE * 0.5f, interior.roomH - 20f,
                 interior.doorX + G.TILE * 0.5f, interior.roomH - 14f, paint);
 
+        // حیوانات باغ‌وحش
+        if (interior.floorType.equals("zoo")) {
+            for (int i = 0; i < interior.animalTypes.size(); i++) {
+                float[] ap = interior.animalPos.get(i);
+                sprites.drawAnimal(c, ap[0], ap[1], interior.animalTypes.get(i), dayNight.minutes);
+            }
+        }
+
         // مبلمان
         for (int i = 0; i < interior.furniture.size(); i++) {
             float[] f = interior.furniture.get(i);
             int[] st = interior.furnitureStyle.get(i);
-            paint.setColor(st[0]);
-            c.drawRoundRect(f[0], f[1], f[0] + f[2], f[1] + f[3], 10f, 10f, paint);
-            paint.setColor(0x33000000);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(3f);
-            c.drawRoundRect(f[0], f[1], f[0] + f[2], f[1] + f[3], 10f, 10f, paint);
-            paint.setStyle(Paint.Style.FILL);
+            if (st[1] == 9) {
+                // پرده سینما: قاب تیره + صفحه روشن
+                paint.setColor(0xFF212121);
+                c.drawRoundRect(f[0] - 8f, f[1] - 8f, f[0] + f[2] + 8f, f[1] + f[3] + 8f, 10f, 10f, paint);
+                paint.setColor(0xFFF5F5F5);
+                c.drawRoundRect(f[0], f[1], f[0] + f[2], f[1] + f[3], 6f, 6f, paint);
+                paint.setColor(0x33000000);
+                c.drawRoundRect(f[0], f[1], f[0] + f[2], f[1] + f[3] * 0.25f, 6f, 6f, paint);
+            } else {
+                sprites.drawFurniture(c, f[0], f[1], f[2], f[3], st[0], st[1], dayNight.minutes);
+            }
+        }
+
+        // صندلی‌های سینما
+        if (interior.floorType.equals("cinema")) {
+            for (int i = 0; i < interior.seatSpots.size(); i++) {
+                float[] s = interior.seatSpots.get(i);
+                sprites.drawCinemaSeat(c, s[0], s[1]);
+            }
+        }
+
+        // شهروندهای داخل
+        for (int i = 0; i < interiorNpcs.size(); i++) {
+            Npc n = interiorNpcs.get(i);
+            sprites.drawPerson(c, n.x, n.y, n.dir, n.anim,
+                    n.shirt, n.pants, n.skin, 0xFF3E2723, n.hairStyle, -1, false, n.gender);
+        }
+
+        sprites.drawBubbles(c, interiorNpcs);
+    }
+
+    // ================= ذخیره و بارگذاری =================
+
+    public void writeTime(JSONObject o) {
+        try {
+            o.put("time", dayNight.minutes);
+        } catch (Exception e) {
+        }
+    }
+
+    public void readTime(JSONObject o) {
+        try {
+            dayNight.minutes = (float) o.optDouble("time", 8f * 60f);
+        } catch (Exception e) {
         }
     }
 }

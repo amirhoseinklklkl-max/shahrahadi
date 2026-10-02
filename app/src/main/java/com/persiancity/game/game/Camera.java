@@ -1,42 +1,47 @@
 package com.persiancity.game.game;
 
+import android.graphics.Canvas;
+
 /**
- * دوربین بازی — بازیکن را نرم دنبال می‌کند
+ * دوربین بازی — دنبال کردن بازیکن با نرمی و محدود به مرزهای شهر
  */
 public class Camera {
+    public float x, y;          // مرکز دید
+    private float halfW, halfH;
 
-    public float x, y;        // مرکز نگاه دوربین (مختصات دنیا)
-    public float scale = 1f;  // بزرگ‌نمایی
-    private float targetScale = 1f;
-
-    public void follow(float tx, float ty, float dt, boolean driving) {
-        targetScale = driving ? 0.82f : 1f;
-        scale += (targetScale - scale) * Math.min(1f, dt * 3f);
-
-        float lerp = Math.min(1f, dt * 8f);
-        x += (tx - x) * lerp;
-        y += (ty - y) * lerp;
-
-        clampToMap();
+    public void setViewport(float w, float h) {
+        this.halfW = w / 2f;
+        this.halfH = h / 2f;
+        clampTo();
     }
 
-    public void snapTo(float tx, float ty) {
-        x = tx;
-        y = ty;
-        clampToMap();
+    public void snap(float tx, float ty) {
+        this.x = tx;
+        this.y = ty;
+        clampTo();
     }
 
-    private void clampToMap() {
-        // محدوده دید صفحه‌ای بعداً در رندر لحاظ می‌شود؛ اینجا حداقلی محدود می‌کنیم
-        x = G.clamp(x, 0, G.WORLD_W);
-        y = G.clamp(y, 0, G.WORLD_H);
+    public void follow(float tx, float ty, float dt) {
+        float k = 1f - (float) Math.pow(0.0001, dt);
+        x += (tx - x) * k;
+        y += (ty - y) * k;
+        clampTo();
     }
 
-    public float screenToWorldX(float screenX, float viewW) {
-        return (screenX - viewW / 2f) / scale + x;
+    private void clampTo() {
+        if (G.WORLD_W > halfW * 2f) {
+            x = G.clamp(x, halfW, G.WORLD_W - halfW);
+        } else {
+            x = G.WORLD_W / 2f;
+        }
+        if (G.WORLD_H > halfH * 2f) {
+            y = G.clamp(y, halfH, G.WORLD_H - halfH);
+        } else {
+            y = G.WORLD_H / 2f;
+        }
     }
 
-    public float screenToWorldY(float screenY, float viewH) {
-        return (screenY - viewH / 2f) / scale + y;
+    public void apply(Canvas c) {
+        c.translate(halfW - x, halfH - y);
     }
 }

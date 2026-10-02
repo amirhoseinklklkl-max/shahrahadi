@@ -1,26 +1,17 @@
 package com.persiancity.game.game;
 
 /**
- * موجودیت پایه دنیای بازی
+ * کلاس پایه همه موجودیت‌های متحرک
  */
-public abstract class Entity {
+public class Entity {
+    public float x, y;
+    public int dir = 0;      // ۰=پایین ۱=چپ ۲=بالا ۳=راست
+    public float anim = 0f;
 
-    public float x, y;   // مختصات مرکز
-    public float w, h;   // اندازه جعبه
+    public Entity() {}
 
-    public Entity(float x, float y, float w, float h) {
+    public Entity(float x, float y) {
         this.x = x;
         this.y = y;
-        this.w = w;
-        this.h = h;
-    }
-
-    public boolean overlaps(Entity other, float margin) {
-        return Math.abs(x - other.x) < (w + other.w) / 2f + margin
-                && Math.abs(y - other.y) < (h + other.h) / 2f + margin;
-    }
-
-    public float distanceTo(Entity other) {
-        return G.dist(x, y, other.x, other.y);
     }
 }

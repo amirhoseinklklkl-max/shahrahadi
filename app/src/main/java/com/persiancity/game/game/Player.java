@@ -1,106 +1,129 @@
 package com.persiancity.game.game;
 
+import org.json.JSONObject;
+
 /**
- * بازیکن — شخصیت اصلی بازی
+ * بازیکن — شخصیت اصلی شهر شادی
  */
 public class Player extends Entity {
-
-    // جهت نگاه: ۰=پایین ۱=بالا ۲=چپ ۳=راست
-    public int facing = 0;
-    public float animTime = 0f;
-    public boolean moving = false;
-
-    // ظاهر
-    public int outfit = 0;   // مدل لباس
-    public int hair = 0;     // مدل مو
-
-    // وضعیت
+    public String name = "قهرمان";
+    public int gender = 0;        // ۰ = پسر، ۱ = دختر
     public int money = G.START_MONEY;
-    public float hunger = 100f;   // ۱۰۰ = سیر کامل
-    public float energy = 100f;   // ۱۰۰ = پر انرژی
+    public float hunger = 100f;   // سیری
+    public float energy = 100f;   // انرژی
+    public Vehicle driving = null;   // خودرو/موتور/هلی/قطار در حال راندن
 
-    // رانندگی
-    public Vehicle driving = null;
+    // بسته شدن سفر با قطار (مسافری)
+    public boolean ridingTrain = false;
+    public float trainBoardDist = 0f;
 
-    // حمل بار (برای شغل گارسونی: کد غذا، برای پیک: بسته)
-    public int carrying = -1;     // -1 = چیزی حمل نمی‌کند
-
-    public Player(float x, float y) {
-        super(x, y, 40, 40);
+    public void eat(float hungerAdd, float energyAdd) {
+        hunger = Math.min(hunger + hungerAdd, 100f);
+        energy = Math.min(energy + energyAdd, 100f);
     }
 
-    public void update(float dt, float joyX, float joyY, World world) {
-        if (driving != null) return; // وقتی ماشین سوار است حرکت مستقیم ندارد
-
-        float len = (float) Math.sqrt(joyX * joyX + joyY * joyY);
-        moving = len > 0.15f;
-
-        float speed = (energy > 15f ? G.WALK_SPEED : G.WALK_SPEED_TIRED);
-
-        if (moving) {
-            float nx = joyX / Math.max(1f, len);
-            float ny = joyY / Math.max(1f, len);
-            if (len > 1f) {
-                nx = joyX / len;
-                ny = joyY / len;
-            }
-
-            float dx = nx * speed * dt;
-            float dy = ny * speed * dt;
-
-            // حرکت جدا برای لغزش روی دیوارها
-            if (!world.collides(x + dx, y, 16f)) {
-                x += dx;
-            }
-            if (!world.collides(x, y + dy, 16f)) {
-                y += dy;
-            }
-
-            // جهت نگاه
-            if (Math.abs(nx) > Math.abs(ny)) {
-                facing = nx < 0 ? 2 : 3;
-            } else {
-                facing = ny < 0 ? 1 : 0;
-            }
-
-            animTime += dt;
-        } else {
-            animTime = 0f;
-        }
-
-        // گرسنگی و انرژی
-        float hungerRate = 0.25f;      // در ثانیه واقعی
-        float energyRate = 0.30f;
-        if (moving) energyRate += 0.10f;
-        if (hunger <= 0f) energyRate += 0.35f; // وقتی گشنه‌ای زود خسته می‌شی
-
-        hunger = Math.max(0f, hunger - hungerRate * dt);
-        energy = Math.max(0f, energy - energyRate * dt);
+    public void addMoney(int amount) {
+        money = Math.max(0, money + amount);
     }
 
     public boolean isTired() {
-        return energy <= 15f;
+        return energy < 25f;
     }
 
-    public void eat(float hungerAdd, float energyAdd) {
-        hunger = Math.min(100f, hunger + hungerAdd);
-        energy = Math.min(100f, energy + energyAdd);
+    /**
+     * حرکت با برخورد — dx/dy از اهرم
+     */
+    public void update(float dt, World world, float dx, float dy) {
+        if (driving != null || ridingTrain) {
+            anim += dt;
+            return;
+        }
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        boolean moving = len > 0.12f;
+        if (moving) {
+            float speed = isTired() ? G.WALK_SPEED_TIRED : G.WALK_SPEED;
+            float nx = dx / len, ny = dy / len;
+            float step = speed * dt;
+
+            // برخورد محور به محور تا گیر نکند
+            float tryX = x + nx * step;
+            if (!world.isBlocked(tryX, y, 14f) && !world.vehicleBlocks(tryX, y, 14f)) {
+                x = tryX;
+            }
+            float tryY = y + ny * step;
+            if (!world.isBlocked(x, tryY, 14f) && !world.vehicleBlocks(x, tryY, 14f)) {
+                y = tryY;
+            }
+            x = G.clamp(x, 100f, G.WORLD_W - 100f);
+            y = G.clamp(y, 100f, G.WORLD_H - 100f);
+
+            // جهت نگاه
+            if (Math.abs(nx) > Math.abs(ny)) {
+                dir = nx > 0 ? 3 : 1;
+            } else {
+                dir = ny > 0 ? 0 : 2;
+            }
+            anim += dt * 1.6f;
+
+            // انرژی و گرسنگی
+            energy = Math.max(0f, energy - dt * 0.55f);
+            hunger = Math.max(0f, hunger - dt * 0.4f);
+            if (hunger <= 0f) energy = Math.max(0f, energy - dt * 1.2f);
+        } else {
+            anim = 0f;
+            energy = Math.min(100f, energy + dt * 0.8f);
+        }
     }
 
-    public void sleep() {
-        energy = 100f;
-        hunger = Math.max(20f, hunger - 30f);
+    /**
+     * داخل ساختمان — حرکت آزاد در اتاق
+     */
+    public void updateInterior(float dt, World world, float dx, float dy, Interior room) {
+        if (driving != null || ridingTrain) return;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        boolean moving = len > 0.12f;
+        if (moving) {
+            float speed = G.WALK_SPEED * 0.85f;
+            float nx = dx / len, ny = dy / len;
+            float step = speed * dt;
+            float tryX = x + nx * step;
+            if (tryX > 20f && tryX < room.roomW - 20f) x = tryX;
+            float tryY = y + ny * step;
+            if (tryY > 30f && tryY < room.roomH - 20f) y = tryY;
+            if (Math.abs(nx) > Math.abs(ny)) dir = nx > 0 ? 3 : 1;
+            else dir = ny > 0 ? 0 : 2;
+            anim += dt * 1.6f;
+            energy = Math.max(0f, energy - dt * 0.3f);
+        } else {
+            anim = 0f;
+        }
     }
 
-    public boolean canAfford(int price) {
-        return money >= price;
+    public void writeJson(JSONObject o) {
+        try {
+            o.put("name", name);
+            o.put("gender", gender);
+            o.put("money", money);
+            o.put("hunger", hunger);
+            o.put("energy", energy);
+            o.put("px", x);
+            o.put("py", y);
+            o.put("dir", dir);
+        } catch (Exception e) {
+        }
     }
 
-    public void pay(int amount) {
-        money = Math.max(0, money - amount);
-    }
-
-    public void earn(int amount) {
-        money += amount;
+    public void readJson(JSONObject o) {
+        try {
+            if (o.has("name")) name = o.getString("name");
+            if (o.has("gender")) gender = o.getInt("gender");
+            money = o.optInt("money", G.START_MONEY);
+            hunger = (float) o.optDouble("hunger", 100.0);
+            energy = (float) o.optDouble("energy", 100.0);
+            x = (float) o.optDouble("px", G.WORLD_W / 2);
+            y = (float) o.optDouble("py", G.WORLD_H / 2);
+            dir = o.optInt("dir", 0);
+        } catch (Exception e) {
+        }
     }
 }

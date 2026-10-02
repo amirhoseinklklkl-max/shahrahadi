@@ -7,10 +7,10 @@ public final class G {
 
     private G() {}
 
-    // اندازه زمین بازی
+    // اندازه زمین بازی (شهر بزرگ)
     public static final float TILE = 64f;
-    public static final int MAP_W = 100;   // تعداد تایل افقی
-    public static final int MAP_H = 78;    // تعداد تایل عمودی
+    public static final int MAP_W = 140;   // تعداد تایل افقی
+    public static final int MAP_H = 100;   // تعداد تایل عمودی
     public static final float WORLD_W = MAP_W * TILE;
     public static final float WORLD_H = MAP_H * TILE;
 

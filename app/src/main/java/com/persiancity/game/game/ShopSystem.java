@@ -1,509 +1,403 @@
 package com.persiancity.game.game;
 
-import java.util.ArrayList;
+import com.persiancity.game.SoundManager;
 
 /**
- * سیستم فروشگاه‌ها و خدمات شهر — منوهای خرید و امکانات
+ * فروشگاه‌ها و منوهای ساختمان‌ها
  */
 public class ShopSystem {
+    private static final Object[][] RESTAURANT_FOODS = {
+        {"چلوکباب", 250, 45f, 30f},
+        {"پیتزا مخصوص", 180, 35f, 25f},
+        {"همبرگر", 120, 28f, 20f},
+        {"سالاد فصل", 80, 18f, 15f}
+    };
+    private static final Object[][] CAFE_FOODS = {
+        {"شکلات داغ", 60, 10f, 22f},
+        {"کیک شکلاتی", 90, 20f, 18f},
+        {"بستنی توت‌فرنگی", 70, 15f, 15f}
+    };
+    private static final Object[][] MARKET_FOODS = {
+        {"سیب قرمز", 30, 12f, 8f},
+        {"آب‌میوه پرتقال", 40, 10f, 14f},
+        {"نان و شکلات", 50, 18f, 10f},
+        {"ساندویچ", 80, 26f, 16f}
+    };
+    private static final Object[][] TOYS = {
+        {"🧸 عروسک خرس", 300},
+        {"🚗 ماشین کنترلی", 450},
+        {"🧩 لگو رنگی", 600}
+    };
+
+    private static final int CINEMA_TICKET = 500;
+    private static final int ZOO_TICKET = 300;
+    private static final int HELI_PRICE = 60000;
+    private static final int TRAIN_PRICE = 50000;
+    private static final int TRAIN_TICKET = 200;
 
     private final GameView view;
     private final World world;
     private final Player player;
     private final UIManager ui;
 
-    // خوراکی‌ها: نام، قیمت، سیری، انرژی
-    private static final Object[][] RESTAURANT_FOODS = {
-            {"ساندویچ مانی", 250, 35f, 15f},
-            {"پیتزا مخصوص", 450, 50f, 20f},
-            {"سالاد تازه", 180, 25f, 25f},
-            {"آب پرتقال", 100, 10f, 12f},
-    };
-    private static final Object[][] CAFE_FOODS = {
-            {"شیرکاکائو", 120, 8f, 18f},
-            {"دونات خوشمزه", 150, 18f, 8f},
-            {"بستنی شکلاتی", 120, 12f, 8f},
-            {"کیک خونمایی", 200, 20f, 10f},
-    };
-    private static final Object[][] MARKET_FOODS = {
-            {"نان و پنیر", 90, 20f, 10f},
-            {"میوه‌ی روز", 90, 15f, 10f},
-            {"تن‌ماهی", 200, 30f, 12f},
-            {"شکلات", 80, 8f, 6f},
-    };
-
-    public ShopSystem(GameView view) {
+    public ShopSystem(GameView view, World world, Player player, UIManager ui) {
         this.view = view;
-        this.world = view.world;
-        this.player = view.player;
-        this.ui = view.ui;
+        this.world = world;
+        this.player = player;
+        this.ui = ui;
     }
 
-    private boolean pay(int price) {
+    public boolean pay(int price) {
         if (player.money < price) {
-            ui.toast("پول کافی نداری! (" + UIManager.faMoney(price) + " تومان لازمه)");
-            view.fx("click");
+            ui.toast("پول کافی نداری! برو کار کن 💪");
             return false;
         }
-        player.pay(price);
-        view.fx("buy");
+        player.addMoney(-price);
+        SoundManager.play("buy");
         return true;
     }
 
-    // ================= منوی کلی ساختمان =================
+    // ================= منوی اصلی ساختمان‌ها =================
 
     public void openBuildingMenu(Building b) {
+        if (b == null) return;
         switch (b.type) {
-            case Building.HOME: openHomeMenu(); break;
-            case Building.CLOTHES: openClothesMenu(); break;
-            case Building.BARBER: openBarberMenu(); break;
-            case Building.CAFE: openFoodMenu("کافه شکلات", CAFE_FOODS, "یه چیزی بخوریم!"); break;
+            case Building.RESTAURANT:
+                world.enterInterior(b, player);
+                openRestaurantMenu();
+                break;
+            case Building.CAFE:
+                world.enterInterior(b, player);
+                openFoodMenu("کافه شکلات", CAFE_FOODS, "یه چیزی بخوریم!");
+                break;
+            case Building.MARKET:
+                world.enterInterior(b, player);
+                openMarketMenu();
+                break;
             case Building.CINEMA: openCinemaMenu(); break;
+            case Building.ZOO: openZooMenu(); break;
+            case Building.HELIPORT: openHeliportMenu(); break;
+            case Building.TRAIN_STATION: openTrainMenu(); break;
+            case Building.HOME: openHomeMenu(); break;
             case Building.HOSPITAL: openHospitalMenu(); break;
             case Building.BANK: openBankMenu(); break;
             case Building.TOYSTORE: openToyMenu(); break;
-            case Building.CARSHOP: openCarShop(); break;
-            case Building.BIKESHOP: openBikeShop(); break;
-            case Building.GARAGE: openGarageMenu(); break;
-            case Building.JOBCENTER: openJobCenter(); break;
-            case Building.TAXISTAND: openTaxiStand(); break;
-            case Building.RESTAURANT:
-            case Building.MARKET:
-                world.enterInterior(b, player);
-                view.fx("door");
-                break;
             default:
-                ui.toast(b.flavorText());
+                world.enterInterior(b, player);
+                openInfoMenu(Building.nameOf(b.type), b.info());
                 break;
         }
     }
 
-    // ================= خانه =================
+    private void openInfoMenu(String title, String text) {
+        ui.openInfo(title, text);
+    }
 
-    private void openHomeMenu() {
-        UIManager.Menu m = new UIManager.Menu("خانه ما — آخیش، رسیدم خونه!");
-        m.items.add(new UIManager.MenuItem("خوابیدن تا صبح", "انرژی پر می‌شه و روز بعد شروع می‌شه",
+    // ================= رستوران =================
+
+    private void openRestaurantMenu() {
+        UIManager.Menu m = new UIManager.Menu("رستوران خوشمزه — نوش جان!");
+        for (Object[] f : RESTAURANT_FOODS) {
+            String name = (String) f[0];
+            int price = (int) f[1];
+            float hunger = (float) f[2];
+            float energy = (float) f[3];
+            m.items.add(new UIManager.MenuItem(name,
+                    UIManager.faMoney(price) + " تومان",
+                    () -> {
+                        if (pay(price)) {
+                            player.eat(hunger, energy);
+                            view.fx("eat");
+                            ui.toast("نوش جان! حالا حالتیه!");
+                        }
+                    }));
+        }
+        m.items.add(new UIManager.MenuItem("شیفت گارسونی", "مشتری‌ها رو سرو کن و انعام بگیر!",
                 () -> {
-                    view.sleepUntilMorning();
-                    ui.closeMenu();
-                }));
-        m.items.add(new UIManager.MenuItem("میان‌وعده خوردن", "۵۰ تومان — کمی سیر و سرحال می‌شی",
-                () -> {
-                    if (pay(50)) {
-                        player.eat(15f, 10f);
-                        view.fx("eat");
-                        ui.toast("وای چه خوشمزه!");
+                    if (view.jobs.startWaiter()) {
+                        ui.closeMenu();
+                        ui.toast("شیفت شروع شد! نزدیک مشتری وایسا و دکمه رو بزن");
                     }
                 }));
-        m.items.add(new UIManager.MenuItem("آوردن خودروها جلوی خانه", "همه ماشین و موتورت اینجا پارک می‌شن",
-                () -> {
-                    view.teleportVehiclesHome();
-                    ui.toast("خودروها جلوی خونه پارک شدن!");
-                    ui.closeMenu();
-                }));
-        m.items.add(new UIManager.MenuItem("ذخیره بازی", "پیشرفتت محفوظ می‌مونه",
-                () -> {
-                    view.saveGame();
-                    ui.toast("بازی ذخیره شد!");
-                    ui.closeMenu();
-                }));
+        m.items.add(new UIManager.MenuItem("خروج از رستوران", "برگرد خیابون",
+                this::exitInteriorNow));
         ui.openMenu(m);
     }
 
-    // ================= فروشگاه لباس =================
+    // ================= سوپرمارکت =================
 
-    private void openClothesMenu() {
-        UIManager.Menu m = new UIManager.Menu("فروشگاه شیک‌پوش — چه مدلی دوست داری؟");
-        for (int i = 0; i < SpriteLib.OUTFITS.length; i++) {
-            final int idx = i;
-            boolean owned = view.ownedOutfits[idx];
-            String sub = owned ? "مال خودته!" : UIManager.faMoney(SpriteLib.OUTFIT_PRICES[i]) + " تومان";
-            m.items.add(new UIManager.MenuItem(SpriteLib.OUTFIT_NAMES[i], sub, () -> {
-                if (player.outfit == idx) {
-                    ui.toast("همین الان اینو پوشیدی!");
-                    return;
-                }
-                if (view.ownedOutfits[idx]) {
-                    player.outfit = idx;
-                    view.fx("click");
-                    ui.toast("پوشیدی: " + SpriteLib.OUTFIT_NAMES[idx]);
-                } else if (pay(SpriteLib.OUTFIT_PRICES[idx])) {
-                    view.ownedOutfits[idx] = true;
-                    player.outfit = idx;
-                    ui.toast("خریدی و پوشیدی: " + SpriteLib.OUTFIT_NAMES[idx] + " — چه خوشگل شدی!");
-                }
-            }));
+    private void openMarketMenu() {
+        UIManager.Menu m = new UIManager.Menu("سوپرمارکت فراوان — تازه و خوشمزه!");
+        for (Object[] f : MARKET_FOODS) {
+            String name = (String) f[0];
+            int price = (int) f[1];
+            float hunger = (float) f[2];
+            float energy = (float) f[3];
+            m.items.add(new UIManager.MenuItem(name,
+                    UIManager.faMoney(price) + " تومان",
+                    () -> {
+                        if (pay(price)) {
+                            player.eat(hunger, energy);
+                            view.fx("eat");
+                            ui.toast("خوشمزه بود!");
+                        }
+                    }));
         }
+        m.items.add(new UIManager.MenuItem("شیفت صندوق", "پشت صندوق وایسا و مشتری‌ها رو برون!",
+                () -> {
+                    if (view.jobs.startShopkeeper()) {
+                        ui.closeMenu();
+                        ui.toast("پشت صندوق وایسا و دکمه «خدمت بده» رو بزن!");
+                    }
+                }));
+        m.items.add(new UIManager.MenuItem("خروج از سوپرمارکت", "برگرد خیابون",
+                this::exitInteriorNow));
         ui.openMenu(m);
     }
 
-    // ================= آرایشگاه =================
-
-    private void openBarberMenu() {
-        UIManager.Menu m = new UIManager.Menu("آرایشگاه آفتاب — موهات رو عوض کنیم؟");
-        for (int i = 0; i < SpriteLib.HAIR_NAMES.length; i++) {
-            final int idx = i;
-            String sub = (i == 0) ? "مدل پیش‌فرض" : UIManager.faMoney(SpriteLib.HAIR_PRICES[i]) + " تومان";
-            m.items.add(new UIManager.MenuItem(SpriteLib.HAIR_NAMES[i], sub, () -> {
-                if (player.hair == idx) {
-                    ui.toast("موهات همین الان همین مدله!");
-                    return;
-                }
-                if (pay(SpriteLib.HAIR_PRICES[idx])) {
-                    player.hair = idx;
-                    ui.toast("مدل جدید مو: " + SpriteLib.HAIR_NAMES[idx] + " — عالی شد!");
-                }
-            }));
-        }
-        ui.openMenu(m);
-    }
-
-    // ================= غذا =================
-
-    private void openFoodMenu(String title, Object[][] foods, String subtitle) {
-        UIManager.Menu m = new UIManager.Menu(title + " — " + subtitle);
+    private void openFoodMenu(String title, Object[][] foods, String msg) {
+        UIManager.Menu m = new UIManager.Menu(title + " — " + msg);
         for (Object[] f : foods) {
-            final String name = (String) f[0];
-            final int price = (Integer) f[1];
-            final float hunger = (Float) f[2];
-            final float energy = (Float) f[3];
-            m.items.add(new UIManager.MenuItem(name, UIManager.faMoney(price) + " تومان", () -> {
-                if (pay(price)) {
-                    player.eat(hunger, energy);
-                    view.fx("eat");
-                    ui.toast(name + " خوردی! نوش جان!");
-                }
-            }));
+            String name = (String) f[0];
+            int price = (int) f[1];
+            float hunger = (float) f[2];
+            float energy = (float) f[3];
+            m.items.add(new UIManager.MenuItem(name,
+                    UIManager.faMoney(price) + " تومان",
+                    () -> {
+                        if (pay(price)) {
+                            player.eat(hunger, energy);
+                            view.fx("eat");
+                            ui.toast("آخ جان! خوشمزه بود 😋");
+                        }
+                    }));
         }
+        m.items.add(new UIManager.MenuItem("خروج", "برگرد بیرون",
+                this::exitInteriorNow));
         ui.openMenu(m);
     }
 
     // ================= سینما =================
 
     private void openCinemaMenu() {
-        UIManager.Menu m = new UIManager.Menu("سینما ستاره — فیلم امروز: «ماشین‌های بامزه»");
-        m.items.add(new UIManager.MenuItem("بلیت تماشای فیلم", "۳۰۰ تومان — دو ساعت می‌گذره",
+        UIManager.Menu m = new UIManager.Menu("سینما ستاره — امروز: کارتون‌های خفن!");
+        m.items.add(new UIManager.MenuItem("🏎 ماشین‌های مسابقه", "بلیط: " + UIManager.faMoney(CINEMA_TICKET) + " تومان",
+                () -> buyTicket(0)));
+        m.items.add(new UIManager.MenuItem("🐠 ماهی رنگارنگ", "بلیط: " + UIManager.faMoney(CINEMA_TICKET) + " تومان",
+                () -> buyTicket(1)));
+        m.items.add(new UIManager.MenuItem("🚀 موشک فضایی", "بلیط: " + UIManager.faMoney(CINEMA_TICKET) + " تومان",
+                () -> buyTicket(2)));
+        ui.openMenu(m);
+    }
+
+    private void buyTicket(int movie) {
+        if (pay(CINEMA_TICKET)) {
+            Building cinema = world.buildingByType(Building.CINEMA);
+            world.enterInterior(cinema, player);
+            // ردیف وسط صندلی
+            int seatIndex = Math.min(8, world.interior.seatSpots.size() / 2 + 1);
+            float[] seat = world.interior.seatSpots.get(seatIndex);
+            player.x = seat[0];
+            player.y = seat[1] + 8f;
+            ui.closeMenu();
+            view.startMovie(movie);
+        }
+    }
+
+    // ================= باغ‌وحش =================
+
+    private void openZooMenu() {
+        UIManager.Menu m = new UIManager.Menu("باغ‌وحش شادی — ۶ حیوان دوست‌داشتنی!");
+        m.items.add(new UIManager.MenuItem("بلیط ورود بخر", UIManager.faMoney(ZOO_TICKET) + " تومان — برو پیش حیوان‌ها!",
                 () -> {
-                    if (pay(300)) {
-                        player.eat(0f, 18f);
-                        world.dayNight.setTime((world.dayNight.getHour() + 2f) * 60f + world.dayNight.getMinute());
-                        view.fx("success");
-                        ui.toast("چه فیلم باحالی! حال دلت خوب شد.");
+                    if (pay(ZOO_TICKET)) {
+                        Building zoo = world.buildingByType(Building.ZOO);
+                        world.enterInterior(zoo, player);
                         ui.closeMenu();
+                        ui.toast("جلو هر حیوان وایسا و «نگاه کن» رو بزن تا درباره‌اش بخونی!");
                     }
                 }));
         ui.openMenu(m);
     }
 
-    // ================= بیمارستان =================
+    // ================= هلی‌پورت =================
 
-    private void openHospitalMenu() {
-        UIManager.Menu m = new UIManager.Menu("بیمارستان مهربانی — پرستارها مهربونن!");
-        m.items.add(new UIManager.MenuItem("معاینه و استراحت", "۲۰۰ تومان — انرژی‌ت پر می‌شه",
-                () -> {
-                    if (player.energy >= 99f) {
-                        ui.toast("کاملاً سرحالی! نیازی نیست.");
-                        return;
-                    }
-                    if (pay(200)) {
-                        player.energy = 100f;
-                        view.fx("success");
-                        ui.toast("حالا انگار نو شدی! سرحالی.");
-                        ui.closeMenu();
-                    }
-                }));
-        ui.openMenu(m);
-    }
-
-    // ================= بانک =================
-
-    private void openBankMenu() {
-        UIManager.Menu m = new UIManager.Menu("بانک سپهر — موجودی: " + UIManager.faMoney(player.money) + " تومان");
-        if (view.lastAllowanceDay < world.dayNight.dayCount) {
-            m.items.add(new UIManager.MenuItem("دریافت پول جیبی امروز", "۳۰۰ تومان — هر روز یکبار",
+    private void openHeliportMenu() {
+        UIManager.Menu m = new UIManager.Menu("هلی‌پورت شهر — پرواز فوق‌العاده!");
+        if (!view.heliOwned) {
+            m.items.add(new UIManager.MenuItem("خرید هلیکوپتر شادی", UIManager.faMoney(HELI_PRICE) + " تومان — خفن‌ترین وسیله شهر!",
                     () -> {
-                        view.lastAllowanceDay = world.dayNight.dayCount;
-                        player.earn(300);
-                        view.fx("coin");
-                        ui.toast("پول جیبی امروز: +۳۰۰ تومان!");
-                        ui.closeMenu();
+                        if (pay(HELI_PRICE)) {
+                            view.heliOwned = true;
+                            Building hp = world.buildingByType(Building.HELIPORT);
+                            Vehicle heli = new Vehicle(Vehicle.CAR_HELICOPTER, hp.doorX, hp.y + hp.h * 0.42f);
+                            heli.mode = Vehicle.MODE_PARKED;
+                            world.vehicles.add(heli);
+                            ui.closeMenu();
+                            ui.toast("هلیکوپتر تو خریده شد! 🚁 سوار شو!");
+                        }
                     }));
         } else {
-            m.items.add(new UIManager.MenuItem("پول جیبی امروز را گرفتی", "فردا دوباره بیا!", null));
+            m.items.add(new UIManager.MenuItem("سوار هلیکوپتر شو", "پرواز کن و شهر رو از بالا ببین!",
+                    () -> {
+                        Vehicle heli = findParked(Vehicle.CAR_HELICOPTER);
+                        if (heli != null && G.dist(player.x, player.y, heli.x, heli.y) < 400f) {
+                            player.driving = heli;
+                            heli.mode = Vehicle.MODE_PLAYER;
+                            player.x = heli.x;
+                            player.y = heli.y;
+                            ui.closeMenu();
+                            ui.toast("پرواز کن! 🚁 اهرم = حرکت | دکمه اقدام = فرود");
+                        } else {
+                            ui.toast("هلیکوپتر نزدیک نیست!");
+                        }
+                    }));
         }
         ui.openMenu(m);
     }
 
-    // ================= اسباب‌بازی =================
+    // ================= ایستگاه قطار 🚂 =================
 
-    private void openToyMenu() {
-        UIManager.Menu m = new UIManager.Menu("فروشگاه فرفره — چه اسباب‌بازی باحالی!");
-        String[][] toys = {
-                {"توپ رنگی", "200"},
-                {"عروسک خرگوش", "500"},
-                {"ماشین کنترلی", "1200"},
-                {"کیت ربات کوچک", "900"},
-        };
-        for (String[] t : toys) {
-            final String name = t[0];
-            final int price = Integer.parseInt(t[1]);
-            m.items.add(new UIManager.MenuItem(name, UIManager.faMoney(price) + " تومان", () -> {
-                if (pay(price)) {
-                    player.eat(0f, 6f);
-                    view.toysOwned++;
-                    view.fx("success");
-                    ui.toast(name + " خریدی! حالا " + G.fa(view.toysOwned) + " تا اسباب‌بازی داری!");
-                }
-            }));
+    private void openTrainMenu() {
+        UIManager.Menu m = new UIManager.Menu("ایستگاه قطار شهری — سفر دور شهر!");
+        m.items.add(new UIManager.MenuItem("🎫 بلیط سفر با قطار", UIManager.faMoney(TRAIN_TICKET) + " تومان — یک دور کامل!",
+                () -> {
+                    Vehicle train = findTrain();
+                    if (train == null) {
+                        ui.toast("قطار الان اینجا نیست — کمی صبر کن!");
+                        return;
+                    }
+                    if (G.dist(player.x, player.y, train.x, train.y) > 600f) {
+                        ui.toast("قطار باید نزدیک ایستگاه باشد!");
+                        return;
+                    }
+                    if (pay(TRAIN_TICKET)) {
+                        player.ridingTrain = true;
+                        player.trainBoardDist = train.trackPos;
+                        player.driving = null;
+                        ui.closeMenu();
+                        SoundManager.play("success");
+                        ui.toast("سفر شروع شد! 🚂 از پنجره شهر را تماشا کن — آخر ایستگاه پیاده می‌شی!");
+                    }
+                }));
+        if (!view.trainOwned) {
+            m.items.add(new UIManager.MenuItem("🚂 خرید قطار شادی", UIManager.faMoney(TRAIN_PRICE) + " تومان — خودت راننده باش!",
+                    () -> {
+                        if (pay(TRAIN_PRICE)) {
+                            view.trainOwned = true;
+                            ui.closeMenu();
+                            ui.toast("قطار خریده شد! دکمه اقدام = سوار شدن");
+                        }
+                    }));
+        } else {
+            m.items.add(new UIManager.MenuItem("🚂 راننده قطار باش", "اهرم بالا/پایین = گاز و ترمز",
+                    () -> {
+                        Vehicle train = findTrain();
+                        if (train == null) {
+                            ui.toast("قطار پیدا نشد!");
+                            return;
+                        }
+                        if (G.dist(player.x, player.y, train.x, train.y) > 700f) {
+                            ui.toast("قطار باید نزدیک باشد!");
+                            return;
+                        }
+                        player.ridingTrain = false;
+                        player.driving = train;
+                        player.x = train.x;
+                        player.y = train.y;
+                        ui.closeMenu();
+                        ui.toast("تو راننده قطار شدی! 🚂 دکمه اقدام = پیاده شدن");
+                    }));
         }
         ui.openMenu(m);
     }
 
-    // ================= نمایشگاه ماشین =================
-
-    private void openCarShop() {
-        UIManager.Menu m = new UIManager.Menu("نمایشگاه تندر — ماشین‌های امروزی");
-        for (int i = 0; i <= 4; i++) {
-            final int model = i;
-            Vehicle.Model mod = Vehicle.MODELS[i];
-            m.items.add(new UIManager.MenuItem(mod.name + " — " + UIManager.faMoney(mod.price) + " تومان",
-                    mod.desc, () -> buyVehicle(model)));
-        }
-        ui.openMenu(m);
-    }
-
-    private void openBikeShop() {
-        UIManager.Menu m = new UIManager.Menu("موتور برق‌وباد — با باد برق بزن!");
-        for (int i = 5; i <= 7; i++) {
-            final int model = i;
-            Vehicle.Model mod = Vehicle.MODELS[i];
-            m.items.add(new UIManager.MenuItem(mod.name + " — " + UIManager.faMoney(mod.price) + " تومان",
-                    mod.desc, () -> buyVehicle(model)));
-        }
-        ui.openMenu(m);
-    }
-
-    private void buyVehicle(int model) {
-        // اگر همین مدل را داری
+    private Vehicle findTrain() {
         for (Vehicle v : world.vehicles) {
-            if (v.model == model && v.mode != Vehicle.MODE_TRAFFIC) {
-                ui.toast("یکی از اینو داری! برو پارکینگ کنارش.");
-                return;
-            }
-        }
-        Vehicle.Model mod = Vehicle.MODELS[model];
-        if (!pay(mod.price)) return;
-
-        Building shop = world.buildingByType(model >= 5 ? Building.BIKESHOP : Building.CARSHOP);
-        float[] spot = findFreeSpotNear(shop.doorX, shop.doorY);
-        if (spot == null) spot = new float[]{shop.doorX, shop.doorY + G.TILE};
-        Vehicle v = new Vehicle(model, spot[0], spot[1]);
-        v.angle = spot.length > 2 ? (float) Math.toRadians(spot[2]) : 0f;
-        world.vehicles.add(v);
-        ui.toast(mod.name + " خریدی! جلوی نمایشگاه منتظرته.");
-        view.fx("success");
-    }
-
-    private float[] findFreeSpotNear(float x, float y) {
-        ArrayList<float[]> sorted = new ArrayList<>(world.parkingSpots);
-        sorted.sort((a, b) -> Float.compare(G.dist(a[0], a[1], x, y), G.dist(b[0], b[1], x, y)));
-        for (float[] s : sorted) {
-            boolean free = true;
-            for (Vehicle v : world.vehicles) {
-                if (v.mode != Vehicle.MODE_TRAFFIC && G.dist(v.x, v.y, s[0], s[1]) < 120f) {
-                    free = false;
-                    break;
-                }
-            }
-            if (free) return s;
+            if (v.type == Vehicle.CAR_TRAIN) return v;
         }
         return null;
     }
 
-    // ================= گاراژ تیونینگ =================
-
-    private void openGarageMenu() {
-        // آیا ماشین یا موتوری داری؟
-        Vehicle mine = view.activeOwnedVehicle();
-        if (mine == null) {
-            ui.toast("اول از نمایشگاه یه ماشین یا موتور بخر، بعد بیا تیونینگ!");
-            return;
+    private Vehicle findParked(int type) {
+        for (Vehicle v : world.vehicles) {
+            if (v.type == type && v.mode == Vehicle.MODE_PARKED) return v;
         }
-        UIManager.Menu m = new UIManager.Menu("گاراژ توربو — تیونینگ " + mine.displayName());
-
-        // رنگ
-        for (int i = 0; i < SpriteLib.CAR_COLORS.length; i++) {
-            final int colorIdx = i;
-            m.items.add(new UIManager.MenuItem("رنگ‌آمیزی " + SpriteLib.CAR_COLOR_NAMES[i], "۵۰۰ تومان",
-                    () -> {
-                        if (pay(500)) {
-                            Vehicle v = view.activeOwnedVehicle();
-                            if (v != null) {
-                                v.paint = SpriteLib.CAR_COLORS[colorIdx];
-                                ui.toast("وای چه رنگ قشنگی!");
-                            }
-                        }
-                    }));
-        }
-
-        // موتور اسپرت
-        if (mine.engineLevel < 3) {
-            final int price = 1500 + mine.engineLevel * 1500;
-            m.items.add(new UIManager.MenuItem("موتور اسپرت (سطح " + G.fa(mine.engineLevel + 1) + ")",
-                    UIManager.faMoney(price) + " تومان — سرعت بیشتر",
-                    () -> {
-                        Vehicle v = view.activeOwnedVehicle();
-                        if (v != null && v.engineLevel < 3 && pay(price)) {
-                            v.engineLevel++;
-                            view.fx("success");
-                            ui.toast("موتورش خفن شد! سطح " + G.fa(v.engineLevel));
-                        }
-                    }));
-        } else {
-            m.items.add(new UIManager.MenuItem("موتور: حداکثر اسپرت", "دیگه جا نداره!", null));
-        }
-
-        // بال اسپرت
-        if (!mine.spoiler) {
-            m.items.add(new UIManager.MenuItem("نصب بال اسپرت", "۲۰۰۰ تومان — ظاهر خفن",
-                    () -> {
-                        Vehicle v = view.activeOwnedVehicle();
-                        if (v != null && !v.spoiler && pay(2000)) {
-                            v.spoiler = true;
-                            view.fx("success");
-                            ui.toast("بال اسپرت وصل شد! خفن شدی.");
-                        }
-                    }));
-        }
-
-        // نئون
-        if (mine.neonColor == 0) {
-            m.items.add(new UIManager.MenuItem("نصب نور نئون", "۱۲۰۰ تومان — شب می‌درخشه",
-                    () -> {
-                        Vehicle v = view.activeOwnedVehicle();
-                        if (v != null && v.neonColor == 0 && pay(1200)) {
-                            v.neonColor = 0xFF00E5FF;
-                            view.fx("success");
-                            ui.toast("نئون آبی نصب شد! شب ببینش!");
-                        }
-                    }));
-        } else {
-            m.items.add(new UIManager.MenuItem("برداشتن نور نئون", "مجانی", () -> {
-                Vehicle v = view.activeOwnedVehicle();
-                if (v != null) {
-                    v.neonColor = 0;
-                    ui.toast("نئون برداشته شد.");
-                }
-            }));
-        }
-
-        ui.openMenu(m);
+        return null;
     }
 
-    // ================= اداره مشاغل =================
+    // ================= خانه و بقیه =================
 
-    private void openJobCenter() {
-        UIManager.Menu m = new UIManager.Menu("اداره مشاغل کارینا — امروز چه‌کار کنیم؟");
-
-        if (view.jobs.activeJob == JobSystem.JOB_TAXI) {
-            m.items.add(new UIManager.MenuItem("پایان کار تاکسی", "شیفت فعلی تمام می‌شه", () -> {
-                view.jobs.stopJob();
-                ui.toast("شیفت تاکسی تموم شد. ممنون!");
-            }));
-        } else {
-            m.items.add(new UIManager.MenuItem("شغل تاکسی رانی", "ماشین لازم داری — مسافر ببر، پول بگیر",
-                    () -> {
-                        if (view.jobs.startTaxi(player)) {
-                            ui.toast("حالت تاکسی فعال شد! سوار ماشین شو.");
-                            ui.closeMenu();
-                        } else {
-                            ui.toast("اول از نمایشگاه «تندر» یه ماشین بخر!");
-                        }
-                    }));
-        }
-
-        if (view.jobs.activeJob == JobSystem.JOB_COURIER) {
-            m.items.add(new UIManager.MenuItem("پایان کار پیک", "شیفت فعلی تمام می‌شه", () -> {
-                view.jobs.stopJob();
-                ui.toast("شیفت پیک تموم شد. خسته نباشی!");
-            }));
-        } else {
-            m.items.add(new UIManager.MenuItem("شغل پیک موتوری", "موتور لازم داری — بسته برسون",
-                    () -> {
-                        if (view.jobs.startCourier(player)) {
-                            ui.toast("حالت پیک فعال شد! برو سراغ بسته‌ها.");
-                            ui.closeMenu();
-                        } else {
-                            ui.toast("اول از «موتور برق‌وباد» یه موتور بخر!");
-                        }
-                    }));
-        }
-
-        m.items.add(new UIManager.MenuItem("شغل گارسونی", "برو داخل «رستوران زنجبیل» با مدیر حرف بزن", null));
-        m.items.add(new UIManager.MenuItem("شغل فروشندگی", "برو داخل «سوپرمارکت فراوان» با مدیر حرف بزن", null));
-        ui.openMenu(m);
-    }
-
-    private void openTaxiStand() {
-        UIManager.Menu m = new UIManager.Menu("ایستگاه تاکسی");
-        if (view.jobs.activeJob == JobSystem.JOB_TAXI) {
-            m.items.add(new UIManager.MenuItem("پایان شیفت تاکسی", "استراحت کن!", () -> {
-                view.jobs.stopJob();
-                ui.toast("شیفت تموم شد!");
-            }));
-        } else {
-            m.items.add(new UIManager.MenuItem("شروع شیفت تاکسی", "ماشین لازم داری",
-                    () -> {
-                        if (view.jobs.startTaxi(player)) {
-                            ui.toast("سوار ماشین شو و منتظر مسافر بمون!");
-                            ui.closeMenu();
-                        } else {
-                            ui.toast("بدون ماشین نمی‌شه تاکسی راند! از نمایشگاه بخر.");
-                        }
-                    }));
-        }
-        ui.openMenu(m);
-    }
-
-    // ================= منوی مدیران داخل مغازه =================
-
-    public void openManagerMenu(Npc manager) {
-        if (manager.role == Npc.ROLE_RESTAURANT_MANAGER) {
-            UIManager.Menu m = new UIManager.Menu("مدیر رستوران زنجبیل");
-            if (view.jobs.activeJob == JobSystem.JOB_WAITER) {
-                m.items.add(new UIManager.MenuItem("پایان شیفت گارسونی", "شیفت تمام می‌شه", () -> {
-                    view.jobs.stopJob();
-                    ui.toast("ممنون از کارت! شیفت تموم شد.");
+    private void openHomeMenu() {
+        UIManager.Menu m = new UIManager.Menu("خانه شادیت 🏠");
+        m.items.add(new UIManager.MenuItem("🛌 تا صبح بخواب", "انرژی پر می‌شود — ساعت ۷ صبح!",
+                () -> {
+                    player.energy = 100f;
+                    player.hunger = Math.max(20f, player.hunger - 15f);
+                    world.dayNight.minutes = 7f * 60f;
+                    SoundManager.play("success");
+                    ui.closeMenu();
+                    ui.toast("صبح بخیر قهرمان! ☀ حالا پر انرژی‌ای!");
                 }));
-            } else {
-                m.items.add(new UIManager.MenuItem("شروع شیفت گارسونی", "۳ مشتری را خدمت بده",
-                        () -> {
-                            view.jobs.startWaiter();
-                            ui.toast("مشتری اول اومد! برو سفارش بگیر.");
-                            ui.closeMenu();
-                        }));
-            }
-            m.items.add(new UIManager.MenuItem("سفارش غذا", "یه چیزی بخوریم!",
-                    () -> openFoodMenu("رستوران زنجبیل", RESTAURANT_FOODS, "سفارش بده")));
-            ui.openMenu(m);
-        } else if (manager.role == Npc.ROLE_MARKET_MANAGER) {
-            UIManager.Menu m = new UIManager.Menu("مدیر سوپرمارکت فراوان");
-            if (view.jobs.activeJob == JobSystem.JOB_SHOPKEEPER) {
-                m.items.add(new UIManager.MenuItem("پایان شیفت فروشندگی", "شیفت تمام می‌شه", () -> {
-                    view.jobs.stopJob();
-                    ui.toast("ممنون! شیفت تموم شد.");
+        m.items.add(new UIManager.MenuItem("🛋 استراحت کوتاه", "+۳۰ انرژی",
+                () -> {
+                    player.energy = Math.min(100f, player.energy + 30f);
+                    SoundManager.play("success");
+                    ui.toast("حالا کمی سرحال‌تری!");
                 }));
-            } else {
-                m.items.add(new UIManager.MenuItem("شروع شیفت فروشندگی", "۴ مشتری را خدمت بده",
-                        () -> {
-                            view.jobs.startShopkeeper();
-                            ui.toast("مشتری اول داره میاد!");
-                            ui.closeMenu();
-                        }));
-            }
-            m.items.add(new UIManager.MenuItem("خرید خوراکی", "از قفسه‌های فروشگاه",
-                    () -> openFoodMenu("سوپرمارکت فراوان", MARKET_FOODS, "بخر و بخور")));
-            ui.openMenu(m);
+        m.items.add(new UIManager.MenuItem("خروج از خانه", "برو بیرون بازی کن!",
+                this::exitInteriorNow));
+        ui.openMenu(m);
+    }
+
+    private void openHospitalMenu() {
+        UIManager.Menu m = new UIManager.Menu("بیمارستان مهربانی 🏥");
+        m.items.add(new UIManager.MenuItem("معاینه کامل", "۱۰۰ تومان — کاملاً سالم می‌شوی!",
+                () -> {
+                    if (pay(100)) {
+                        player.hunger = 100f;
+                        player.energy = 100f;
+                        SoundManager.play("success");
+                        ui.toast("دکتر می‌گوید: «تو سالم‌ترین بچه شهر هستی!»");
+                    }
+                }));
+        m.items.add(new UIManager.MenuItem("خروج", "", this::exitInteriorNow));
+        ui.openMenu(m);
+    }
+
+    private void openBankMenu() {
+        UIManager.Menu m = new UIManager.Menu("بانک شادی 🏦");
+        m.items.add(new UIManager.MenuItem("پس‌انداز روز", "۵۰ تومان جایزه پس‌انداز!",
+                () -> {
+                    player.addMoney(50);
+                    SoundManager.play("coin");
+                    ui.toast("کارمند بانک: «آفرین! پس‌انداز یادت نره!»");
+                }));
+        m.items.add(new UIManager.MenuItem("خروج", "", this::exitInteriorNow));
+        ui.openMenu(m);
+    }
+
+    private void openToyMenu() {
+        UIManager.Menu m = new UIManager.Menu("فروشگاه اسباب‌بازی 🧸");
+        for (Object[] t : TOYS) {
+            String name = (String) t[0];
+            int price = (int) t[1];
+            m.items.add(new UIManager.MenuItem(name, UIManager.faMoney(price) + " تومان",
+                    () -> {
+                        if (pay(price)) {
+                            SoundManager.play("success");
+                            ui.toast("ول کردی! 🎉 " + name + " مال تو شد!");
+                        }
+                    }));
         }
+        m.items.add(new UIManager.MenuItem("خروج", "", this::exitInteriorNow));
+        ui.openMenu(m);
+    }
+
+    public void exitInteriorNow() {
+        view.jobs.stopJob();
+        view.stopMovie();
+        world.exitInterior(player);
+        ui.closeMenu();
     }
 }

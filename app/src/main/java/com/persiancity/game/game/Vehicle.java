@@ -1,198 +1,197 @@
 package com.persiancity.game.game;
 
-import android.graphics.Canvas;
+import com.persiancity.game.SoundManager;
+
+import java.util.Random;
 
 /**
- * وسایل نقلیه — ماشین و موتور با فیزیک ساده و بامزه
+ * وسایل نقلیه شهر شادی:
+ * ماشین‌ها و موتورها در خیابان‌ها رفت‌وآمد می‌کنند (برخورد = دود و محو!)
+ * هلیکوپتر پرواز آزاد دارد و قطار روی ریل دور شهر می‌چرخد.
  */
 public class Vehicle extends Entity {
+    public static final int CAR_SEDAN = 0;
+    public static final int CAR_TAXI = 1;
+    public static final int CAR_SPORT = 2;
+    public static final int CAR_PICKUP = 3;
+    public static final int CAR_BUS = 4;
+    public static final int MOTOR = 5;
+    public static final int CAR_HELICOPTER = 6;
+    public static final int CAR_TRAIN = 7;
 
-    // مدل‌ها
-    public static final int CAR_ABI = 0;      // آبی ابری (سدان)
-    public static final int CAR_TANDE = 1;    // تندر نارنجی (اسپرت)
-    public static final int CAR_VAN = 2;      // ون خانواده
-    public static final int CAR_VANT = 3;     // وانت باری
-    public static final int CAR_CLASSIC = 4;  // کلاسیک قرمز
-    public static final int BIKE_SKOOTER = 5; // اسکوتر ملایم
-    public static final int BIKE_SHETAB = 6;  // موتور شتاب
-    public static final int BIKE_NEON = 7;    // موتور نئون
+    public static final int MODE_TRAFFIC = 0;   // در ترافیک شهر
+    public static final int MODE_PARKED = 1;    // پارک شده (قابل خرید/سوار شدن)
+    public static final int MODE_PLAYER = 2;    // توسط بازیکن رانده می‌شود
+    public static final int MODE_RAIL = 3;      // قطار روی ریل
 
-    // حالت
-    public static final int MODE_PARKED = 0;
-    public static final int MODE_PLAYER = 1;
-    public static final int MODE_TRAFFIC = 2;
+    public int type;
+    public int mode = MODE_TRAFFIC;
+    public float speed = 0f;
+    public float angle = 0f;          // رادیان
+    public int color = 0xFFE53935;
 
-    public static class Model {
-        public final String name;
-        public final int price;
-        public final float maxSpeed;
-        public final int baseColor;
-        public final boolean bike;
-        public final String desc;
+    // ترافیک
+    public char axis = 'H';           // 'H' افقی / 'V' عمودی
+    public float laneDir = 1f;        // +۱ یا -۱
+    public float laneMin = 140f;      // محدوده حرکت روی لاین
+    public float laneMax = G.WORLD_W - 140f;
 
-        public Model(String name, int price, float maxSpeed, int baseColor, boolean bike, String desc) {
-            this.name = name;
-            this.price = price;
-            this.maxSpeed = maxSpeed;
-            this.baseColor = baseColor;
-            this.bike = bike;
-            this.desc = desc;
-        }
-    }
+    // برخورد و دود
+    public float deadTimer = 0f;      // بعد از تصادف ۳ ثانیه نامرئی
+    public float smokeTimer = 0f;
 
-    public static final Model[] MODELS = {
-            new Model("آبی ابری", 15000, 300f, 0xFF42A5F5, false, "یک سدان آروم و مطمئن"),
-            new Model("تندر نارنجی", 32000, 385f, 0xFFFF7043, false, "اسپرت و خفن! برای شغل تاکسی عالیه"),
-            new Model("ون خانواده", 22000, 265f, 0xFF9CCC65, false, "جادار برای دورهمی‌ها"),
-            new Model("وانت باری", 18000, 280f, 0xFFFFB300, false, "برای حمل بار و کار"),
-            new Model("کلاسیک قرمز", 28000, 320f, 0xFFEF5350, false, "قدیمی ولی شیک"),
-            new Model("اسکوتر ملایم", 4000, 265f, 0xFF4DD0E1, true, "اسکوتر بامزه برای پیک"),
-            new Model("موتور شتاب", 7500, 360f, 0xFFAB47BC, true, "تند و تیز!"),
-            new Model("موتور نئون", 9000, 400f, 0xFF7C4DFF, true, "با نورهای رنگی شبانه"),
+    // قطار
+    public float trackPos = 0f;       // فاصله روی ریل
+    public float hornCooldown = 0f;
+
+    private static final Random rnd = new Random();
+    private static final float[] tmp = new float[3];
+
+    public static final int[] CAR_COLORS = {
+        0xFFE53935, 0xFF1E88E5, 0xFFFDD835, 0xFF43A047, 0xFF8E24AA, 0xFFFF7043, 0xFF00ACC1
     };
 
-    public final int model;
-    public int paint;          // رنگ بدنه (قابل تغییر در گاراژ)
-    public int engineLevel;    // ۰ تا ۳
-    public boolean spoiler;    // بال اسپرت
-    public int neonColor;      // ۰ = ندارد
-    public int mode = MODE_PARKED;
-    public boolean hasPassenger = false;   // مسافر تاکسی
-
-    // فیزیک
-    public float angle = 0f;   // رادیان (۰ = شرق)
-    public float speed = 0f;   // پیکسل بر ثانیه (منفی = دنده عقب)
-
-    // هوش مصنوعی ترافیک
-    public int trafficAxis = 0;   // ۰=افقی ۱=عمودی
-    public int trafficSign = 1;   // ۱ یا -۱
-
-    public Vehicle(int model, float x, float y) {
-        super(x, y, 0, 0);
-        this.model = model;
-        this.paint = MODELS[model].baseColor;
-        if (isBike()) {
-            w = 34;
-            h = 60;
-        } else if (model == CAR_VAN || model == CAR_VANT) {
-            w = 76;
-            h = 130;
+    public Vehicle(int type, float x, float y) {
+        this.type = type;
+        this.x = x;
+        this.y = y;
+        if (type == CAR_TRAIN) {
+            this.color = 0xFFD32F2F;
+            this.speed = 95f;
+        } else if (type == MOTOR) {
+            this.color = CAR_COLORS[rnd.nextInt(CAR_COLORS.length)];
+            this.speed = 150f;
+        } else if (type == CAR_BUS) {
+            this.color = 0xFFFB8C00;
+            this.speed = 85f;
         } else {
-            w = 70;
-            h = 124;
+            this.color = CAR_COLORS[rnd.nextInt(CAR_COLORS.length)];
+            this.speed = 105f + rnd.nextFloat() * 45f;
         }
     }
 
-    public boolean isBike() {
-        return MODELS[model].bike;
+    public boolean isFlying() {
+        return type == CAR_HELICOPTER && mode == MODE_PLAYER;
     }
 
-    public float maxSpeed() {
-        return MODELS[model].maxSpeed * (1f + 0.12f * engineLevel);
-    }
-
-    public float accelPower() {
-        boolean sport = model == CAR_TANDE || model == BIKE_SHETAB || model == BIKE_NEON;
-        return (isBike() ? 330f : 240f) * (sport ? 1.25f : 1f);
+    public boolean isActive() {
+        return deadTimer <= 0f;
     }
 
     /**
-     * رانندگی بازیکن با جوی‌استیک
+     * شعاع برخورد این وسیله
      */
-    public void drive(float dt, float joyX, float joyY, World world) {
-        float throttle = -joyY;   // بالا = گاز
-        float steer = joyX;
-
-        if (throttle > 0.1f) {
-            speed += accelPower() * throttle * dt;
-        } else if (throttle < -0.1f) {
-            // ترمز / دنده عقب
-            speed -= accelPower() * 0.9f * (-throttle) * dt;
-        } else {
-            // اصطکاک
-            speed *= (1f - 1.4f * dt);
-            if (Math.abs(speed) < 8f) speed = 0f;
+    public float blockRadius() {
+        switch (type) {
+            case MOTOR: return 20f;
+            case CAR_BUS: return 44f;
+            case CAR_HELICOPTER: return 40f;
+            default: return 32f;
         }
-
-        float max = maxSpeed();
-        float maxRev = -max * 0.35f;
-        speed = G.clamp(speed, maxRev, max);
-
-        // فرمان
-        float speedNorm = Math.abs(speed) / maxSpeed();
-        if (Math.abs(speed) > 15f) {
-            float turnRate = 2.4f * (isBike() ? 1.25f : 1f);
-            float t = steer * turnRate * dt * (0.45f + 0.55f * speedNorm);
-            if (speed < 0) t = -t;
-            angle += t;
-        }
-
-        moveWithCollision(dt, world, 20f);
     }
 
     /**
-     * حرکت ترافیک شهری روی جاده‌ها
+     * مکان واگن i ام قطار (۰ = لوکوموتیو)
      */
-    public void trafficUpdate(float dt, World world, Entity playerEntity) {
-        float targetSpeed = 150f + (model % 3) * 20f;
-
-        // ترمز برای بازیکن
-        float lookAhead = 110f;
-        float fx = x + (float) Math.cos(angle) * lookAhead;
-        float fy = y + (float) Math.sin(angle) * lookAhead;
-        if (playerEntity != null && G.dist(fx, fy, playerEntity.x, playerEntity.y) < 95f) {
-            targetSpeed = 0f;
+    public void pointAt(World world, int i, float[] out) {
+        if (world.railPath == null) {
+            out[0] = x;
+            out[1] = y;
+            return;
         }
-
-        if (speed < targetSpeed) speed = Math.min(targetSpeed, speed + 220f * dt);
-        else if (speed > targetSpeed) speed = Math.max(targetSpeed, speed - 400f * dt);
-
-        // چک جاده بودن جلو
-        float nx = x + (float) Math.cos(angle) * (isBike() ? 30f : 45f);
-        float ny = y + (float) Math.sin(angle) * (isBike() ? 30f : 45f);
-        if (!world.isRoadPoint(nx, ny)) {
-            // آخر جاده: دور بزن
-            angle += (float) Math.PI;
-            trafficSign = -trafficSign;
+        world.railPath.posAt(trackPos - i * 95f, tmp);
+        out[0] = tmp[0];
+        out[1] = tmp[1];
+        if (i == 0) {
+            out[0] = x;
+            out[1] = y;
         }
-
-        moveWithCollision(dt, world, 18f);
     }
 
-    private void moveWithCollision(float dt, World world, float radius) {
-        float dx = (float) Math.cos(angle) * speed * dt;
-        float dy = (float) Math.sin(angle) * speed * dt;
+    /**
+     * به‌روزرسانی رفتار
+     */
+    public void update(float dt, World world) {
+        if (deadTimer > 0f) {
+            deadTimer -= dt;
+            if (deadTimer <= 0f) respawn(world);
+            return;
+        }
 
-        float nx = x + dx;
-        float ny = y + dy;
+        switch (mode) {
+            case MODE_TRAFFIC:
+                updateTraffic(dt);
+                break;
 
-        if (!world.collides(nx + (float) Math.cos(angle) * 20f, ny + (float) Math.sin(angle) * 20f, radius * 0.6f)
-                && !world.collides(nx, ny, radius)) {
-            x = nx;
-            y = ny;
+            case MODE_RAIL:
+                updateRail(dt, world);
+                break;
+
+            case MODE_PARKED:
+            case MODE_PLAYER:
+            default:
+                break;
+        }
+    }
+
+    private void updateTraffic(float dt) {
+        float v = speed * laneDir * dt;
+        if (axis == 'H') {
+            x += v;
+            angle = laneDir > 0 ? 0f : (float) Math.PI;
+            // رسیدن به آخر مسیر = دور همان مسیر می‌زند
+            if (x > laneMax) x = laneMin;
+            if (x < laneMin) x = laneMax;
         } else {
-            // برخورد: ایست با کوچک پسرفت
-            speed *= -0.25f;
+            y += v;
+            angle = laneDir > 0 ? (float) Math.PI / 2f : (float) -Math.PI / 2f;
+            if (y > laneMax) y = laneMin;
+            if (y < laneMin) y = laneMax;
+        }
+    }
+
+    private void updateRail(float dt, World world) {
+        if (world.railPath == null) return;
+        trackPos += speed * dt;
+        world.railPath.posAt(trackPos, tmp);
+        x = tmp[0];
+        y = tmp[1];
+        angle = tmp[2];
+
+        // دود دودکش
+        smokeTimer -= dt;
+        if (smokeTimer <= 0f) {
+            smokeTimer = 0.38f;
+            float sx = x - (float) Math.cos(angle) * 34f;
+            float sy = y - (float) Math.sin(angle) * 34f - 46f;
+            world.addSmoke(sx, sy, 9f);
         }
 
-        // محدود به دنیا
-        x = G.clamp(x, 60f, G.WORLD_W - 60f);
-        y = G.clamp(y, 60f, G.WORLD_H - 60f);
-    }
-
-    public float speedNorm() {
-        return G.clamp(Math.abs(speed) / maxSpeed(), 0f, 1f);
-    }
-
-    public String displayName() {
-        return MODELS[model].name;
-    }
-
-    public void draw(Canvas c, SpriteLib sprites) {
-        if (isBike()) {
-            sprites.drawMotorcycle(c, this);
-        } else {
-            sprites.drawCar(c, this);
+        // بوق نزدیک ایستگاه
+        hornCooldown -= dt;
+        if (hornCooldown <= 0f && world.trainStationX > 0f) {
+            if (G.dist(x, y, world.trainStationX, world.trainStationY) < 260f) {
+                SoundManager.play("train");
+                hornCooldown = 40f;
+            }
         }
+    }
+
+    /**
+     * بعد از تصادف یا رسیدن به آخر شهر: جای دیگر ظاهر شو
+     */
+    public void respawn(World world) {
+        deadTimer = 0f;
+        if (type == CAR_TRAIN || mode == MODE_RAIL) return;   // قطار هرگز نمی‌میرد
+        if (mode == MODE_PLAYER) return;
+        world.randomLaneSpawn(this);
+        speed = type == MOTOR ? 150f : 105f + rnd.nextFloat() * 45f;
+    }
+
+    /**
+     * جهت حرکت برای رسم
+     */
+    public float drawAngle() {
+        return angle;
     }
 }

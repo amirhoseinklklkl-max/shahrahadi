@@ -1,5 +1,6 @@
 package com.persiancity.game
 
+import android.content.Context
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
@@ -8,10 +9,13 @@ import com.persiancity.game.game.GameView
 
 /**
  * اکتیویتی اصلی بازی — نمای تمام‌صفحه افقی را می‌سازد
+ * بار اول: صفحه ساخت شخصیت (اسم + جنسیت با پیش‌نمایش بزرگ)
+ * بعد از آن: مستقیم ادامه بازی ذخیره‌شده
  */
 class GameActivity : AppCompatActivity() {
 
     private var gameView: GameView? = null
+    private var selectedGender = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,14 +28,16 @@ class GameActivity : AppCompatActivity() {
                 WindowManager.LayoutParams.FLAG_FULLSCREEN
             )
 
-            gameView = GameView(this)
-            gameView!!.setKeepScreenOn(true)
-            setContentView(gameView)
-            hideSystemUi()
+            val prefs = getSharedPreferences("shahrshadi_prefs", Context.MODE_PRIVATE)
+            val hasCharacter = prefs.contains("charName")
+
+            if (!hasCharacter && !SaveManager.hasSave(this)) {
+                showCharacterCreation()
+            } else {
+                startGameView()
+            }
         } catch (t: Throwable) {
-            // ذخیره گزارش خطا برای عیب‌یابی بعدی
             saveCrashLog(t)
-            // اگر هر اتفاق غیرمنتظره‌ای افتاد، بازی با پیام شفاف بسته شود نه کرش ناگهانی
             android.widget.Toast.makeText(
                 this,
                 "متأسفانه بازی شروع نشد. لطفاً دوباره تلاش کن.",
@@ -39,6 +45,61 @@ class GameActivity : AppCompatActivity() {
             ).show()
             finish()
         }
+    }
+
+    // ================= صفحه ساخت شخصیت =================
+
+    private fun showCharacterCreation() {
+        setContentView(R.layout.character_create)
+
+        val preview = findViewById<CharPreviewView>(R.id.charPreview)
+        val etName = findViewById<android.widget.EditText>(R.id.etName)
+        val btnBoy = findViewById<android.widget.Button>(R.id.btnBoy)
+        val btnGirl = findViewById<android.widget.Button>(R.id.btnGirl)
+        val btnStart = findViewById<android.widget.Button>(R.id.btnStartCreate)
+
+        fun highlightGender() {
+            btnBoy.isSelected = selectedGender == 0
+            btnGirl.isSelected = selectedGender == 1
+            btnBoy.setTextColor(if (selectedGender == 0) 0xFFE65100.toInt() else 0xFF4E342E.toInt())
+            btnGirl.setTextColor(if (selectedGender == 1) 0xFFE65100.toInt() else 0xFF4E342E.toInt())
+        }
+
+        btnBoy.setOnClickListener {
+            selectedGender = 0
+            preview.gender = 0
+            preview.hairStyle = 0
+            SoundManager.play("click")
+            highlightGender()
+        }
+        btnGirl.setOnClickListener {
+            selectedGender = 1
+            preview.gender = 1
+            preview.hairStyle = 2
+            SoundManager.play("click")
+            highlightGender()
+        }
+        highlightGender()
+
+        btnStart.setOnClickListener {
+            val name = etName.text.toString().trim().ifEmpty { "قهرمان" }
+            val prefs = getSharedPreferences("shahrshadi_prefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString("charName", name)
+                .putInt("charGender", selectedGender)
+                .apply()
+            SoundManager.play("success")
+            startGameView()
+        }
+    }
+
+    // ================= شروع خود بازی =================
+
+    private fun startGameView() {
+        gameView = GameView(this)
+        gameView!!.setKeepScreenOn(true)
+        setContentView(gameView)
+        hideSystemUi()
     }
 
     private fun saveCrashLog(t: Throwable) {
@@ -68,16 +129,17 @@ class GameActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         gameView?.pauseGame()
+        SoundManager.stopMusic()
     }
 
     override fun onResume() {
         super.onResume()
         gameView?.resumeGame()
+        SoundManager.startMusic()
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // دکمه برگشت = توقف بازی (نه خروج مستقیم)
         gameView?.openPauseMenu()
     }
 }

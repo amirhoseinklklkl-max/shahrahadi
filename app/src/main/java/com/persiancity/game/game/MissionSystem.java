@@ -1,217 +1,115 @@
 package com.persiancity.game.game;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
+import com.persiancity.game.SaveManager;
+import com.persiancity.game.SoundManager;
 
 import java.util.ArrayList;
 import java.util.Random;
 
 /**
- * سیستم ماموریت‌های NPC — ببر و بیار با جایزه
+ * مأموریت‌های شاد شهر — کارهای کوچک با جایزه
  */
 public class MissionSystem {
-
-    public static class Mission {
-        public int giverIndex;      // اندیس NPC دهنده
-        public int kind;            // ۰ = بردن بسته به ساختمان، ۱ = رساندن نامه به NPC
-        public int targetBuildingType = -1;
-        public int targetNpcIndex = -1;
-        public int reward;
-        public String title;
-        public boolean done = false;
-
-        public String targetText(World world) {
-            if (kind == 0) {
-                for (Building b : world.buildings) {
-                    if (b.type == targetBuildingType) return b.name;
-                }
-                return "مقصد";
-            } else {
-                if (targetNpcIndex >= 0 && targetNpcIndex < world.cityNpcs.size()) {
-                    return world.cityNpcs.get(targetNpcIndex).name;
-                }
-                return "شهروند";
-            }
+    private static class Mission {
+        final String title;
+        final String desc;
+        final int buildingType;   // -۱ = بدون مکان
+        final int reward;
+        Mission(String t, String d, int bt, int r) {
+            title = t; desc = d; buildingType = bt; reward = r;
         }
     }
 
-    private final ArrayList<Mission> active = new ArrayList<>();
-    private final Random rnd;
+    private final ArrayList<Mission> missions = new ArrayList<>();
+    private int current = 0;
+    private int completedCount = 0;
+
+    private final GameView view;
     private final World world;
+    private final Player player;
+    private final Random rnd = new Random();
+    private float checkTimer = 0f;
 
-    public MissionSystem(World world, Random rnd) {
+    public MissionSystem(GameView view, World world, Player player) {
+        this.view = view;
         this.world = world;
-        this.rnd = rnd;
-    }
-
-    public ArrayList<Mission> getActive() {
-        return active;
-    }
-
-    public boolean hasFreeSlots() {
-        return active.size() < 3;
-    }
-
-    /**
-     * آیا این NPC ماموریت تازه می‌دهد؟
-     */
-    public boolean canOffer(Npc npc) {
-        if (npc.role != Npc.ROLE_CITIZEN) return false;
-        if (!hasFreeSlots()) return false;
-        for (Mission m : active) {
-            if (m.giverIndex == indexOf(npc)) return false;
-        }
-        return rnd.nextInt(100) < 70;
-    }
-
-    private int indexOf(Npc npc) {
-        return world.cityNpcs.indexOf(npc);
+        this.player = player;
+        missions.add(new Mission("به بانک سر بزن", "پول‌هایت را در بانک شادی پس‌انداز کن", Building.BANK, 150));
+        missions.add(new Mission("در رستوران غذا بخور", "یک غذای خوشمزه سفارش بده", Building.RESTAURANT, 100));
+        missions.add(new Mission("بلیط سینما بخر", "در سینما ستاره یک کارتون تماشا کن", Building.CINEMA, 200));
+        missions.add(new Mission("به باغ‌وحش برو", "بلیط بخر و حیوان‌ها را ببین", Building.ZOO, 200));
+        missions.add(new Mission("سوار قطار شو", "از ایستگاه، یک دور کامل با قطار بگرد", Building.TRAIN_STATION, 250));
+        missions.add(new Mission("در مدرسه درس بخوان", "معلم‌ها منتظر تو هستند", Building.SCHOOL, 150));
+        missions.add(new Mission("در سوپرمارکت کار کن", "پشت صندوق وایسا و مشتری برون", Building.MARKET, 300));
+        missions.add(new Mission("کتاب بخوان", "در کتابخانه نور یک کتاب قرض بگیر", Building.LIBRARY, 120));
+        missions.add(new Mission("شکارچی گنج", "برو حوالی پارک بزرگ — یک سکه پنهان است!", Building.HOME, 180));
     }
 
     /**
-     * ساخت ماموریت جدید از این NPC
+     * متن روی نوار بالای صفحه
      */
-    public Mission createMission(Npc giver) {
-        Mission m = new Mission();
-        m.giverIndex = indexOf(giver);
-        m.kind = rnd.nextInt(2);
-        m.reward = 300 + rnd.nextInt(6) * 100;
+    public String hudText() {
+        if (current >= missions.size()) return null;
+        Mission m = missions.get(current);
+        return m.title + " (" + G.fa(completedCount + 1) + "/" + G.fa(missions.size()) + ")";
+    }
 
-        if (m.kind == 0) {
-            // بردن بسته به یک ساختمان
-            int[] types = {Building.CLOTHES, Building.RESTAURANT, Building.MARKET, Building.CAFE,
-                    Building.CINEMA, Building.BANK, Building.SCHOOL, Building.HOSPITAL,
-                    Building.TOYSTORE, Building.LIBRARY, Building.GARAGE};
-            int t = types[rnd.nextInt(types.length)];
-            m.targetBuildingType = t;
-            for (Building b : world.buildings) {
-                if (b.type == t) {
-                    m.targetBuildingType = t;
-                    break;
-                }
-            }
-            m.title = "این بسته رو ببر به «" + m.targetText(world) + "»";
-        } else {
-            // رساندن نامه به یک شهروند دیگر
-            int idx = rnd.nextInt(Math.max(1, world.cityNpcs.size()));
-            if (idx == m.giverIndex) idx = (idx + 3) % Math.max(1, world.cityNpcs.size());
-            m.targetNpcIndex = idx;
-            m.title = "این نامه رو برسون به «" + m.targetText(world) + "»";
+    public void update(float dt) {
+        if (current >= missions.size()) return;
+        checkTimer -= dt;
+        if (checkTimer > 0f) return;
+        checkTimer = 0.5f;
+
+        Mission m = missions.get(current);
+        if (m.buildingType < 0) return;
+        Building b = world.buildingByType(m.buildingType);
+        if (b == null) return;
+
+        // نزدیک در ساختمان هدف باشی (و یا داخلش)
+        float dx = player.x, dy = player.y;
+        float d = G.dist(dx, dy, b.doorX, b.doorY);
+        boolean insideTarget = world.interior != null && world.interior.building == b;
+        if (d < 140f || insideTarget) {
+            complete(m);
         }
-        active.add(m);
-        return m;
     }
 
     /**
-     * اگر بازیکن نزدیک هدف ماموریت است و در دسترس، تحویل بده
+     * تکمیل دستی (مثلاً سوار شدن بر قطار)
      */
-    public String tryComplete(Player player, Npc talkedTo) {
-        for (int i = 0; i < active.size(); i++) {
-            Mission m = active.get(i);
-            if (m.done) continue;
-
-            if (m.kind == 1 && talkedTo != null) {
-                int idx = world.cityNpcs.indexOf(talkedTo);
-                if (idx == m.targetNpcIndex) {
-                    active.remove(i);
-                    player.earn(m.reward);
-                    return Dialogues.pick(Dialogues.MISSION_DONE_LINES, rnd) + " (+" + G.fa(m.reward) + " تومان)";
-                }
-            } else if (m.kind == 0 && talkedTo == null) {
-                // تحویل در جلوی ساختمان مقصد
-                for (Building b : world.buildings) {
-                    if (b.type == m.targetBuildingType
-                            && G.dist(player.x, player.y, b.doorX, b.doorY) < G.TILE * 2f) {
-                        active.remove(i);
-                        player.earn(m.reward);
-                        return "بسته تحویل داده شد! (+" + G.fa(m.reward) + " تومان)";
-                    }
-                }
-            }
+    public void completeByTitle(String contains) {
+        if (current >= missions.size()) return;
+        Mission m = missions.get(current);
+        if (m.title.contains(contains)) {
+            complete(m);
         }
-        return null;
     }
 
-    public Mission missionNearTarget(Player player) {
-        for (Mission m : active) {
-            if (m.done) continue;
-            if (m.kind == 0) {
-                for (Building b : world.buildings) {
-                    if (b.type == m.targetBuildingType
-                            && G.dist(player.x, player.y, b.doorX, b.doorY) < G.TILE * 2.5f) {
-                        return m;
-                    }
-                }
-            }
+    private void complete(Mission m) {
+        player.addMoney(m.reward);
+        completedCount++;
+        current++;
+        SoundManager.play("mission");
+        view.ui.toast("🎯 مأموریت انجام شد! جایزه: " + UIManager.faMoney(m.reward) + " تومان");
+        if (current < missions.size()) {
+            view.ui.toast("مأموریت جدید: " + missions.get(current).title);
         }
-        return null;
     }
 
-    /**
-     * مختصات هدف اولین ماموریت فعال (برای فلش راهنما و مینی‌مپ)
-     */
-    public float[] firstTarget() {
-        for (Mission m : active) {
-            if (m.done) continue;
-            if (m.kind == 0) {
-                for (Building b : world.buildings) {
-                    if (b.type == m.targetBuildingType) return new float[]{b.doorX, b.doorY};
-                }
-            } else {
-                if (m.targetNpcIndex >= 0 && m.targetNpcIndex < world.cityNpcs.size()) {
-                    Npc n = world.cityNpcs.get(m.targetNpcIndex);
-                    return new float[]{n.x, n.y};
-                }
-            }
-        }
-        return null;
+    public int currentIndex() {
+        return current;
     }
 
-    public String activeTitles() {
-        if (active.isEmpty()) return null;
-        StringBuilder sb = new StringBuilder("ماموریت‌ها: ");
-        for (Mission m : active) {
-            sb.append("• ").append(m.title).append("  ");
-        }
-        return sb.toString();
+    public void setCurrent(int i) {
+        current = Math.max(0, Math.min(i, missions.size()));
     }
 
-    // ---------------- ذخیره و بارگذاری ----------------
-
-    public JSONArray toJson() {
-        JSONArray arr = new JSONArray();
-        for (Mission m : active) {
-            try {
-                JSONObject o = new JSONObject();
-                o.put("giver", m.giverIndex);
-                o.put("kind", m.kind);
-                o.put("bt", m.targetBuildingType);
-                o.put("ni", m.targetNpcIndex);
-                o.put("rw", m.reward);
-                o.put("t", m.title);
-                arr.put(o);
-            } catch (Exception ignored) {
-            }
-        }
-        return arr;
+    public int count() {
+        return missions.size();
     }
 
-    public void fromJson(JSONArray arr) {
-        active.clear();
-        if (arr == null) return;
-        for (int i = 0; i < arr.length(); i++) {
-            try {
-                JSONObject o = arr.getJSONObject(i);
-                Mission m = new Mission();
-                m.giverIndex = o.optInt("giver", 0);
-                m.kind = o.optInt("kind", 0);
-                m.targetBuildingType = o.optInt("bt", -1);
-                m.targetNpcIndex = o.optInt("ni", -1);
-                m.reward = o.optInt("rw", 300);
-                m.title = o.optString("t", "ماموریت");
-                active.add(m);
-            } catch (Exception ignored) {
-            }
-        }
+    public String randomCheer() {
+        String[] c = {"آفرین!", "عالی بود!", "تو قهرمان شهر شادی هستی!", "چه بازیکن باهوشی!"};
+        return c[rnd.nextInt(c.length)];
     }
 }

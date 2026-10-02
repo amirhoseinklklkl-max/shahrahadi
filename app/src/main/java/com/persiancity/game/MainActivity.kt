@@ -9,7 +9,8 @@ import androidx.appcompat.app.AppCompatActivity
 
 /**
  * صفحه شروع بازی «شهر شادی»
- * منوی اصلی با دکمه‌های شروع بازی جدید، ادامه بازی، راهنما و صدا
+ * بازی همیشه ادامه بازی قبلی است (ذخیره خودکار)؛ دکمه «شروع بازی» مستقیم وارد می‌شود.
+ * بار اول، صفحه ساخت شخصیت (اسم + جنسیت) در GameActivity نمایش داده می‌شود.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -21,38 +22,21 @@ class MainActivity : AppCompatActivity() {
         )
         setContentView(R.layout.activity_main)
 
-        val btnNew = findViewById<View>(R.id.btnNewGame)
-        val btnContinue = findViewById<View>(R.id.btnContinue)
+        val btnStart = findViewById<View>(R.id.btnNewGame)
         val btnHelp = findViewById<View>(R.id.btnHelp)
         val btnSound = findViewById<View>(R.id.btnSound)
         val btnExit = findViewById<View>(R.id.btnExit)
 
-        // اگر بازی ذخیره‌شده وجود دارد، دکمه «ادامه بازی» نمایش داده شود
-        val hasSave = SaveManager.hasSave(this)
-        btnContinue.visibility = if (hasSave) View.VISIBLE else View.GONE
-
         SoundManager.init(this)
         updateSoundLabel(btnSound)
 
-        btnNew.setOnClickListener {
-            if (SaveManager.hasSave(this)) {
-                AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.game_title))
-                    .setMessage(getString(R.string.confirm_new_game))
-                    .setPositiveButton(getString(R.string.yes)) { _, _ ->
-                        SaveManager.deleteSave(this)
-                        openGame()
-                    }
-                    .setNegativeButton(getString(R.string.no), null)
-                    .show()
-            } else {
-                openGame()
-            }
+        btnStart.setOnClickListener {
+            SoundManager.play("click")
+            openGame()
         }
 
-        btnContinue.setOnClickListener { openGame() }
-
         btnHelp.setOnClickListener {
+            SoundManager.play("click")
             AlertDialog.Builder(this)
                 .setTitle(getString(R.string.help_title))
                 .setMessage(getString(R.string.help_text))
@@ -71,12 +55,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateSoundLabel(view: View) {
         val btn = view as android.widget.Button
-        btn.text = if (SoundManager.isMuted) getString(R.string.sound_off) else getString(R.string.sound_on)
+        btn.text = if (SoundManager.isMuted) getString(R.string.btn_sound_off) else getString(R.string.btn_sound_on)
     }
 
     private fun openGame() {
-        // توجه: finish() صدا نمی‌زنیم؛ اگر بازی خطایی داشت، کاربر به همین منو برمی‌گردد
-        // و دکمه «خروج به منوی اصلی» داخل بازی هم درست کار می‌کند.
+        // finish() صدا نمی‌زنیم؛ اگر بازی خطایی داشت، کاربر به همین منو برمی‌گردد
         startActivity(Intent(this, GameActivity::class.java))
     }
 }

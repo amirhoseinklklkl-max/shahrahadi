@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">شهر شادی</string>
-    <string name="game_title">شهر شادی</string>
-    <string name="game_subtitle">دنیای بازی دوبعدی — بزرگ شو، کار کن، خرید کن!</string>
-    <string name="btn_new_game">شروع بازی جدید</string>
-    <string name="btn_continue">ادامه بازی</string>
-    <string name="btn_help">راهنمای بازی</string>
+    <string name="btn_start">شروع بازی</string>
+    <string name="btn_help">راهنما</string>
     <string name="btn_exit">خروج</string>
-    <string name="sound_on">صدا: روشن</string>
-    <string name="sound_off">صدا: خاموش</string>
-    <string name="help_title">راهنمای بازی</string>
-    <string name="help_text">• با جوی‌استیک سمت چپ حرکت کن\n• دکمه بزرگ سمت راست: انجام کار (حرف زدن، رفتن تو مغازه، سوار شدن)\n• با ماشین یا موتور: جوی‌استیک بالا گاز، پایین ترمز، چپ و راست فرمان\n• پول جمع کن: شغل بگیر، ماموریت انجام بده\n• غذا بخور و استراحت کن تا انرژی‌ات پر بمونه\n• شب که می‌شه براق خونه برو و بخواب تا صبح بشه\n• تو آرایشگاه موهات رو عوض کن، تو گاراژ ماشینت رو اسپرت کن!</string>
-    <string name="confirm_new_game">بازی قبلیت پاک می‌شه! مطمئنی بازی جدید شروع کنی؟</string>
-    <string name="yes">بله</string>
-    <string name="no">نه</string>
-    <string name="ok">باشه</string>
+    <string name="btn_sound_on">صدا: روشن</string>
+    <string name="btn_sound_off">صدا: خاموش</string>
+    <string name="help_title">راهنمای شهر شادی</string>
+    <string name="help_text">با اهرم پایین صفحه قدم بزن و با دکمه‌های نارنجی با شهر بازی کن!\n\n• جلوی مغازه‌ها بایست تا دکمه «وارد شو» بیاید\n• «نگاه کن» اطلاعات هر ساختمان را نشان می‌دهد\n• قطار شهری همیشه دور شهر می‌چرخد — از ایستگاه سوار شو!\n• در سینما بلیط بخر و فیلم تماشا کن، در باغ‌وحش حیوان‌ها را ببین\n• با کار کردن (تاکسی، گارسون، پیک، صندوق) پول جمع کن\n• بازی خودش همه‌چیز را ذخیره می‌کند — هر بار ادامه می‌دهی!</string>
+    <string name="ok">فهمیدم</string>
+    <string name="create_title">ساخت شخصیت</string>
+    <string name="create_name_hint">اسمت چیه؟</string>
+    <string name="create_gender_label">پسر یا دختر؟</string>
+    <string name="create_boy">پسر</string>
+    <string name="create_girl">دختر</string>
+    <string name="create_start">شروع ماجرا!</string>
 </resources>

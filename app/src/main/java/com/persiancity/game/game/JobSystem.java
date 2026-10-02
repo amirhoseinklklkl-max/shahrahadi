@@ -1,12 +1,14 @@
 package com.persiancity.game.game;
 
+import com.persiancity.game.SoundManager;
+
+import java.util.ArrayList;
 import java.util.Random;
 
 /**
- * سیستم شغل‌ها: تاکسی رانی، پیک موتوری، گارسونی، فروشندگی
+ * نظام مشاغل: تاکسی، پیک، گارسون، صندوق‌دار — با دکمه اقدام کار می‌کنند
  */
 public class JobSystem {
-
     public static final int JOB_NONE = 0;
     public static final int JOB_TAXI = 1;
     public static final int JOB_COURIER = 2;
@@ -15,423 +17,330 @@ public class JobSystem {
 
     public int activeJob = JOB_NONE;
 
-    // تاکسی
-    private Npc taxiPassenger = null;
-    private boolean passengerOnBoard = false;
-    private float destX, destY;
-    private float taxiRespawn = 0f;
-    private float taxiTripDist = 0f;
-
-    // پیک
-    private int courierStage = 0;   // ۰=برای بردن بسته ۱=تحویل
-    private int courierTargetType = -1;
-    private float courierTimer = 0f;
-    private float courierTripDist = 0f;
-
-    // گارسونی
-    private Npc waiterCustomer = null;
-    private int waiterStage = 0;    // ۰=راه رفتن به میز ۱=منتظر سفارش‌گیری ۲=منتظر غذا ۳=تمام
-    private int waiterServedCount = 0;
-    private float tableX, tableY;
-    private int tableIndex = 0;
-
-    // فروشندگی
-    private Npc shopCustomer = null;
-    private int shopStage = 0;      // ۰=در راه صندوق ۱=منتظر خدمت
-    private int shopServedCount = 0;
-    private boolean serving = false;
-    private float servingTimer = 0f;
-
-    private final World world;
-    private final Random rnd;
     private final GameView view;
+    private final World world;
+    private final Player player;
+    private final UIManager ui;
+    private final Random rnd = new Random();
 
-    public JobSystem(World world, Random rnd, GameView view) {
-        this.world = world;
-        this.rnd = rnd;
+    // تاکسی / پیک
+    private Npc taxiPassenger = null;
+    private float[] taxiDest = null;
+    private float taxiBoardX, taxiBoardY;
+    private float taxiRespawn = 1.5f;
+    private boolean carryingPackage = false;
+
+    // گارسون
+    private int waiterServedCount = 0;
+    private int waiterStage = 0;
+    private Npc waiterCustomer = null;
+
+    // صندوق
+    private int shopServedCount = 0;
+    private int shopStage = 0;
+    private boolean serving = false;
+
+    public JobSystem(GameView view, World world, Player player, UIManager ui) {
         this.view = view;
+        this.world = world;
+        this.player = player;
+        this.ui = ui;
+    }
+
+    // ================= شروع شیفت‌ها =================
+
+    public boolean startTaxi() {
+        if (activeJob != JOB_NONE) return false;
+        if (player.driving == null) {
+            ui.toast("اول سوار یک ماشین یا موتور شو!");
+            return false;
+        }
+        activeJob = JOB_TAXI;
+        taxiPassenger = null;
+        taxiRespawn = 0.5f;
+        ui.toast("شیفت تاکسی شروع شد! برو سراغ مسافر 🚕");
+        return true;
+    }
+
+    public boolean startCourier() {
+        if (activeJob != JOB_NONE) return false;
+        if (player.driving == null) {
+            ui.toast("برای پیک بودن باید موتور یا ماشین داشته باشی!");
+            return false;
+        }
+        activeJob = JOB_COURIER;
+        carryingPackage = false;
+        taxiRespawn = 0.5f;
+        ui.toast("شیفت پیک شروع شد! بسته را بردار 🛵");
+        return true;
+    }
+
+    public boolean startWaiter() {
+        if (activeJob != JOB_NONE) return false;
+        activeJob = JOB_WAITER;
+        waiterServedCount = 0;
+        waiterStage = 0;
+        waiterCustomer = null;
+        spawnWaiterCustomer();
+        return true;
+    }
+
+    public boolean startShopkeeper() {
+        if (activeJob != JOB_NONE) return false;
+        activeJob = JOB_SHOPKEEPER;
+        shopServedCount = 0;
+        shopStage = 0;
+        serving = false;
+        spawnShopCustomer();
+        return true;
     }
 
     public void stopJob() {
+        if (activeJob == JOB_NONE) return;
         activeJob = JOB_NONE;
         taxiPassenger = null;
-        passengerOnBoard = false;
+        taxiDest = null;
         waiterCustomer = null;
-        shopCustomer = null;
-        serving = false;
-        courierStage = 0;
+        carryingPackage = false;
     }
 
-    // ---------------- شروع شغل‌ها ----------------
+    // ================= برچسب دکمه اقدام =================
 
-    public boolean startTaxi(Player p) {
-        boolean hasCar = false;
-        for (Vehicle v : world.vehicles) {
-            if (v.mode != Vehicle.MODE_TRAFFIC && !v.isBike()) {
-                hasCar = true;
-                break;
-            }
+    public String actionLabel() {
+        switch (activeJob) {
+            case JOB_TAXI:
+                if (taxiPassenger == null && taxiDest == null) return "سوار کن";
+                if (taxiDest != null) return "پیاده کن";
+                return null;
+            case JOB_COURIER:
+                return "بردار / تحویل بده";
+            case JOB_WAITER:
+                return waiterStage == 1 ? "سرو کن" : null;
+            case JOB_SHOPKEEPER:
+                return shopStage == 1 ? "خدمت بده" : null;
+            default:
+                return null;
         }
-        if (!hasCar) return false;
-        activeJob = JOB_TAXI;
-        taxiRespawn = 1f;
-        return true;
     }
 
-    public boolean startCourier(Player p) {
-        boolean hasBike = false;
-        for (Vehicle v : world.vehicles) {
-            if (v.mode != Vehicle.MODE_TRAFFIC && v.isBike()) {
-                hasBike = true;
-                break;
-            }
+    public boolean doAction() {
+        switch (activeJob) {
+            case JOB_TAXI: return taxiAction();
+            case JOB_COURIER: return courierAction();
+            case JOB_WAITER: return waiterAction();
+            case JOB_SHOPKEEPER: return shopkeeperAction();
+            default: return false;
         }
-        if (!hasBike) return false;
-        activeJob = JOB_COURIER;
-        nextCourierTarget();
-        return true;
     }
 
-    public void startWaiter() {
-        activeJob = JOB_WAITER;
-        waiterServedCount = 0;
-        spawnWaiterCustomer();
-    }
+    // ================= به‌روزرسانی =================
 
-    public void startShopkeeper() {
-        activeJob = JOB_SHOPKEEPER;
-        shopServedCount = 0;
-        spawnShopCustomer();
+    public void update(float dt, Player p) {
+        switch (activeJob) {
+            case JOB_TAXI: updateTaxi(dt, p); break;
+            case JOB_COURIER: updateCourier(dt, p); break;
+            case JOB_WAITER: updateWaiter(dt, p); break;
+            case JOB_SHOPKEEPER: updateShopkeeper(dt, p); break;
+        }
+        // خروج از وسیله = پایان شیفت رانندگی
+        if ((activeJob == JOB_TAXI || activeJob == JOB_COURIER) && p.driving == null) {
+            stopJob();
+        }
+        // خروج از مغازه = پایان شیفت داخل
+        if ((activeJob == JOB_WAITER || activeJob == JOB_SHOPKEEPER) && world.interior == null) {
+            stopJob();
+        }
     }
-
-    // ---------------- تاکسی ----------------
 
     private void updateTaxi(float dt, Player p) {
-        if (p.driving == null) return;   // باید پشت فرمان باشی
-
-        if (taxiPassenger == null) {
+        if (p.driving == null) return;
+        if (taxiPassenger == null && taxiDest == null) {
             taxiRespawn -= dt;
             if (taxiRespawn <= 0f) {
-                // مسافر جدید در نقطه‌ای از پیاده‌رو
-                float[] spot = world.randomWalkableNear(p.x, p.y, 30f * G.TILE, false);
+                float[] spot = world.randomWalkableNear(p.x, p.y, 26f * G.TILE, false);
                 if (spot != null) {
-                    taxiPassenger = new Npc(spot[0], spot[1], "مسافر", Npc.ROLE_TAXI_PASSENGER, rnd);
-                    taxiPassenger.say(Dialogues.pick(Dialogues.TAXI_PICKUP_LINES, rnd), 4f);
-                    passengerOnBoard = false;
-                    world.cityNpcs.add(taxiPassenger);
+                    Npc cust = new Npc(spot[0], spot[1], rnd.nextInt(2));
+                    cust.say("تاکسی! 🚕");
+                    taxiPassenger = cust;
+                    world.cityNpcs.add(cust);
+                    taxiBoardX = spot[0];
+                    taxiBoardY = spot[1];
+                    ui.toast("یک مسافر منتظر است! نشان تو را می‌بینی.");
                 } else {
                     taxiRespawn = 2f;
                 }
             }
-            return;
-        }
-
-        Vehicle car = p.driving;
-        if (!passengerOnBoard) {
-            // رسیدن به مسافر
-            if (G.dist(car.x, car.y, taxiPassenger.x, taxiPassenger.y) < 110f && Math.abs(car.speed) < 25f) {
-                world.cityNpcs.remove(taxiPassenger);
-                car.hasPassenger = true;
-                passengerOnBoard = true;
-                // مقصد: جلوی یک ساختمان تصادفی
-                Building b = world.buildings.get(rnd.nextInt(world.buildings.size()));
-                destX = b.doorX;
-                destY = b.doorY;
-                taxiTripDist = G.dist(car.x, car.y, destX, destY);
-                view.toast("مسافر سوار شد! برو به «" + b.name + "»");
-            }
-        } else {
-            if (G.dist(car.x, car.y, destX, destY) < 130f && Math.abs(car.speed) < 25f) {
-                car.hasPassenger = false;
-                int pay = 300 + (int) (taxiTripDist / 8f);
-                pay = Math.max(400, Math.min(1500, pay));
-                p.earn(pay);
-                view.toast(Dialogues.pick(Dialogues.TAXI_DROP_LINES, rnd) + " (+" + G.fa(pay) + " تومان)");
-                view.fx("coin");
-                taxiPassenger = null;
-                passengerOnBoard = false;
-                taxiRespawn = 3f + rnd.nextFloat() * 4f;
-            }
         }
     }
 
-    // ---------------- پیک موتوری ----------------
-
-    private void nextCourierTarget() {
-        int[] types = {Building.RESTAURANT, Building.MARKET, Building.CAFE, Building.TOYSTORE, Building.CLOTHES};
-        courierTargetType = types[rnd.nextInt(types.length)];
-        courierStage = 0;
-        courierTimer = 75f;
-    }
-
-    private Building courierTargetBuilding() {
-        for (Building b : world.buildings) {
-            if (b.type == courierTargetType) return b;
+    private boolean taxiAction() {
+        Player p = player;
+        if (taxiPassenger != null && p.driving != null
+                && G.dist(p.x, p.y, taxiBoardX, taxiBoardY) < 110f) {
+            taxiDest = world.randomWalkableNear(p.x + (rnd.nextBoolean() ? 1 : -1) * 30f * G.TILE,
+                    p.y + (rnd.nextBoolean() ? 1 : -1) * 24f * G.TILE, 6f * G.TILE, false);
+            if (taxiDest == null) taxiDest = new float[]{G.WORLD_W / 2, G.WORLD_H / 2};
+            world.cityNpcs.remove(taxiPassenger);
+            taxiPassenger = null;
+            SoundManager.play("door");
+            ui.toast("مسافر سوار شد! برو سمت مقصد و دکمه «پیاده کن» را بزن");
+            return true;
         }
-        return null;
-    }
-
-    private void updateCourier(float dt, Player p) {
-        if (courierStage == 0) courierTimer -= dt;
-        Building target = courierTargetBuilding();
-        if (target == null) {
-            nextCourierTarget();
-            return;
-        }
-
-        Entity ent = p.driving != null ? p.driving : p;
-        float d = G.dist(ent.x, ent.y, target.doorX, target.doorY);
-        if (d < 140f && (p.driving == null || Math.abs(p.driving.speed) < 30f)) {
-            if (courierStage == 0) {
-                courierStage = 1;
-                courierTripDist = d;
-                p.carrying = 1;
-                view.toast("بسته رو برداشتی! حالا ببرش به «" + target.name + "»");
-                view.fx("click");
-            } else {
-                int pay = 500 + (int) (courierTripDist / 12f);
-                if (courierTimer > 0f) pay += 200;
-                pay = Math.min(1800, pay);
-                p.earn(pay);
-                p.carrying = -1;
-                view.toast("بسته رسید! (+" + G.fa(pay) + " تومان)");
-                view.fx("coin");
-                nextCourierTarget();
-            }
-        }
-    }
-
-    // ---------------- گارسونی ----------------
-
-    private void spawnWaiterCustomer() {
-        Interior in = world.interior;
-        if (in == null) return;
-        waiterCustomer = new Npc(in.doorX, in.doorY, "مشتری", Npc.ROLE_TABLE_CUSTOMER, rnd);
-        tableIndex = waiterServedCount % in.tableSpots.size();
-        float[] spot = in.tableSpots.get(tableIndex);
-        tableX = spot[0];
-        tableY = spot[1];
-        waiterCustomer.setTarget(tableX + G.TILE * 0.6f, tableY + G.TILE * 0.7f);
-        waiterStage = 0;
-        world.interiorNpcs.add(waiterCustomer);
-    }
-
-    private void updateWaiter(float dt, Player p) {
-        if (waiterCustomer == null) return;
-        switch (waiterStage) {
-            case 0:
-                if (waiterCustomer.atTarget()) {
-                    waiterStage = 1;
-                    waiterCustomer.say("ممنون! من یه غذای خوشمزه می‌خوام.", 3f);
-                }
-                break;
-            case 2:
-                // غذا رسیده؟ چک در doJobAction انجام می‌شود
-                break;
-        }
-    }
-
-    // ---------------- فروشندگی ----------------
-
-    private void spawnShopCustomer() {
-        Interior in = world.interior;
-        if (in == null) return;
-        shopCustomer = new Npc(in.doorX, in.doorY, "مشتری", Npc.ROLE_QUEUE_CUSTOMER, rnd);
-        float[] spot = in.standSpots.get(0);
-        shopCustomer.setTarget(spot[0], spot[1]);
-        shopStage = 0;
-        world.interiorNpcs.add(shopCustomer);
-    }
-
-    private void updateShopkeeper(float dt, Player p) {
-        if (shopCustomer == null) return;
-        if (shopStage == 0 && shopCustomer.atTarget()) {
-            shopStage = 1;
-            shopCustomer.say("سلام! می‌خوام خرید کنم.", 3f);
-        }
-        if (serving) {
-            servingTimer -= dt;
-            if (servingTimer <= 0f) {
-                serving = false;
-                p.earn(150);
-                view.toast("خرید انجام شد! (+۱۵۰ تومان)");
-                view.fx("coin");
-                world.interiorNpcs.remove(shopCustomer);
-                shopCustomer = null;
-                shopServedCount++;
-                if (shopServedCount < 4) {
-                    spawnShopCustomer();
-                } else {
-                    p.earn(300);
-                    view.toast("شیفت تموم شد! دستمزد: +۳۰۰ تومان");
-                    view.fx("mission");
-                    stopJob();
-                }
-            }
-        }
-    }
-
-    // ---------------- اکشن شغل‌ها ----------------
-
-    /**
-     * متن دکمه اقدام مخصوص شغل (اگر زمینه شغلی باشد)
-     */
-    public String jobPrompt(Player p) {
-        switch (activeJob) {
-            case JOB_WAITER:
-                if (waiterCustomer != null) {
-                    if (waiterStage == 1 && p.carrying < 0
-                            && G.dist(p.x, p.y, tableX, tableY) < 90f) {
-                        return "سفارش بگیر";
-                    }
-                    if (waiterStage == 1 && p.carrying < 0 && G.dist(p.x, p.y, world.interior.counterX, world.interior.counterY) < 110f) {
-                        return "غذا آماده کن";
-                    }
-                    if (p.carrying == 0 && G.dist(p.x, p.y, tableX, tableY) < 90f) {
-                        return "غذا بده";
-                    }
-                }
-                break;
-            case JOB_SHOPKEEPER:
-                if (shopCustomer != null && shopStage == 1 && !serving) {
-                    if (G.dist(p.x, p.y, world.interior.counterX, world.interior.counterY) < 100f) {
-                        return "خدمت بده";
-                    }
-                }
-                break;
-        }
-        return null;
-    }
-
-    public boolean doJobAction(Player p) {
-        switch (activeJob) {
-            case JOB_WAITER:
-                if (waiterCustomer != null && waiterStage == 1
-                        && p.carrying < 0
-                        && G.dist(p.x, p.y, tableX, tableY) < 90f) {
-                    waiterCustomer.say("لطفاً سریع باشه!", 2.5f);
-                    view.toast("سفارش گرفتی! برو به آشپزخانه.");
-                    view.fx("click");
-                    return true;
-                }
-                if (waiterCustomer != null && waiterStage == 1 && p.carrying < 0
-                        && G.dist(p.x, p.y, world.interior.counterX, world.interior.counterY) < 110f) {
-                    p.carrying = 0;
-                    view.toast("غذا آماده‌ست! ببرش برای مشتری.");
-                    view.fx("eat");
-                    return true;
-                }
-                if (waiterCustomer != null && p.carrying == 0
-                        && G.dist(p.x, p.y, tableX, tableY) < 90f) {
-                    p.carrying = -1;
-                    int tip = 120 + rnd.nextInt(7) * 10;
-                    p.earn(tip);
-                    waiterCustomer.say("وای چه خوشمزه! ممنون!", 3f);
-                    view.toast("انعام گرفتی! (+" + G.fa(tip) + " تومان)");
-                    view.fx("coin");
-                    world.interiorNpcs.remove(waiterCustomer);
-                    waiterCustomer = null;
-                    waiterServedCount++;
-                    if (waiterServedCount < 3) {
-                        spawnWaiterCustomer();
-                    } else {
-                        p.earn(300);
-                        view.toast("شیفت گارسونی تموم شد! دستمزد: +۳۰۰ تومان");
-                        view.fx("mission");
-                        stopJob();
-                    }
-                    return true;
-                }
-                break;
-
-            case JOB_SHOPKEEPER:
-                if (shopCustomer != null && shopStage == 1 && !serving
-                        && G.dist(p.x, p.y, world.interior.counterX, world.interior.counterY) < 100f) {
-                    serving = true;
-                    servingTimer = 1.4f;
-                    view.fx("click");
-                    return true;
-                }
-                break;
+        if (taxiDest != null && p.driving != null && G.dist(p.x, p.y, taxiDest[0], taxiDest[1]) < 120f) {
+            float d = G.dist(p.x, p.y, taxiBoardX, taxiBoardY);
+            int fare = 120 + (int) (d / G.TILE) * 8;
+            p.addMoney(fare);
+            SoundManager.play("coin");
+            ui.toast(" کرایه: " + UIManager.faMoney(fare) + " تومان! 🎉");
+            taxiDest = null;
+            taxiRespawn = 2f;
+            return true;
         }
         return false;
     }
 
-    // ---------------- به‌روزرسانی کل ----------------
-
-    public void update(float dt, Player p) {
-        switch (activeJob) {
-            case JOB_TAXI:
-                updateTaxi(dt, p);
-                break;
-            case JOB_COURIER:
-                updateCourier(dt, p);
-                break;
-            case JOB_WAITER:
-                updateWaiter(dt, p);
-                break;
-            case JOB_SHOPKEEPER:
-                updateShopkeeper(dt, p);
-                break;
-        }
-    }
-
-    /**
-     * هدف فعلی برای فلش راهنما و مینی‌مپ
-     */
-    public float[] currentMarker(Player p) {
-        switch (activeJob) {
-            case JOB_TAXI:
-                if (p.driving != null) {
-                    if (taxiPassenger != null && !passengerOnBoard) {
-                        return new float[]{taxiPassenger.x, taxiPassenger.y};
-                    }
-                    if (passengerOnBoard) {
-                        return new float[]{destX, destY};
-                    }
+    private void updateCourier(float dt, Player p) {
+        if (p.driving == null || carryingPackage) return;
+        if (packageSpot == null) {
+            taxiRespawn -= dt;
+            if (taxiRespawn <= 0f) {
+                float[] spot = world.randomWalkableNear(p.x, p.y, 24f * G.TILE, false);
+                if (spot != null) {
+                    packageSpot = spot;
+                    ui.toast("یک بسته منتظر است — برو بردارش!");
+                } else {
+                    taxiRespawn = 2f;
                 }
-                break;
-            case JOB_COURIER:
-                Building b = courierTargetBuilding();
-                if (b != null) return new float[]{b.doorX, b.doorY};
-                break;
+            }
         }
-        return null;
+    }
+
+    private float[] packageSpot = null;
+
+    private boolean courierAction() {
+        Player p = player;
+        if (!carryingPackage && packageSpot != null && G.dist(p.x, p.y, packageSpot[0], packageSpot[1]) < 110f) {
+            carryingPackage = true;
+            float[] dest = world.randomWalkableNear(p.x + (rnd.nextBoolean() ? 1 : -1) * 28f * G.TILE,
+                    p.y + (rnd.nextBoolean() ? 1 : -1) * 22f * G.TILE, 6f * G.TILE, false);
+            packageSpot = dest != null ? dest : new float[]{G.WORLD_W / 2, G.WORLD_H / 2};
+            SoundManager.play("click");
+            ui.toast("بسته برداشتی! ببرش به مقصد");
+            return true;
+        }
+        if (carryingPackage && packageSpot != null && G.dist(p.x, p.y, packageSpot[0], packageSpot[1]) < 120f) {
+            int pay = 90 + rnd.nextInt(80);
+            p.addMoney(pay);
+            carryingPackage = false;
+            packageSpot = null;
+            taxiRespawn = 2f;
+            SoundManager.play("coin");
+            ui.toast("تحویل داده شد! دستمزد: " + UIManager.faMoney(pay) + " تومان 🎉");
+            return true;
+        }
+        return false;
+    }
+
+    private void spawnWaiterCustomer() {
+        if (world.interior == null) return;
+        Npc cust = new Npc(200f + rnd.nextFloat() * (world.interior.roomW - 400f),
+                160f + rnd.nextFloat() * (world.interior.roomH - 260f), rnd.nextInt(2));
+        cust.say("لطفاً سفارش بده!");
+        waiterCustomer = cust;
+        world.interiorNpcs.add(cust);
+    }
+
+    private void updateWaiter(float dt, Player p) {
+        if (world.interior == null || !world.interior.floorType.equals("restaurant")) return;
+        if (waiterCustomer != null) {
+            waiterCustomer.update(dt, world);
+            if (G.dist(p.x, p.y, waiterCustomer.x, waiterCustomer.y) < 120f) {
+                waiterStage = 1;
+            } else {
+                waiterStage = 0;
+            }
+        }
+    }
+
+    private boolean waiterAction() {
+        if (waiterStage == 1 && waiterCustomer != null) {
+            int tip = 40 + rnd.nextInt(50);
+            player.addMoney(tip);
+            waiterServedCount++;
+            world.interiorNpcs.remove(waiterCustomer);
+            waiterCustomer = null;
+            waiterStage = 0;
+            SoundManager.play("coin");
+            ui.toast("سرو شد! انعام: " + UIManager.faMoney(tip) + " تومان 🍽");
+            spawnWaiterCustomer();
+            return true;
+        }
+        return false;
+    }
+
+    private void spawnShopCustomer() {
+        if (world.interior == null) return;
+        Npc cust = new Npc(world.interior.roomW - 120f, world.interior.roomH - 120f, rnd.nextInt(2));
+        cust.say("سلام! حساب کن 🛒");
+        waiterCustomer = cust;
+        world.interiorNpcs.add(cust);
+    }
+
+    private void updateShopkeeper(float dt, Player p) {
+        if (world.interior == null) return;
+        if (waiterCustomer != null) {
+            waiterCustomer.update(dt, world);
+            if (G.dist(p.x, p.y, waiterCustomer.x, waiterCustomer.y) < 130f) {
+                shopStage = 1;
+            } else {
+                shopStage = 0;
+            }
+        }
+    }
+
+    private boolean shopkeeperAction() {
+        if (shopStage == 1 && waiterCustomer != null) {
+            int pay = 45 + rnd.nextInt(45);
+            player.addMoney(pay);
+            shopServedCount++;
+            world.interiorNpcs.remove(waiterCustomer);
+            waiterCustomer = null;
+            shopStage = 0;
+            SoundManager.play("coin");
+            ui.toast("خرید انجام شد! دستمزد: " + UIManager.faMoney(pay) + " تومان 🛒");
+            spawnShopCustomer();
+            return true;
+        }
+        return false;
     }
 
     /**
-     * متن وضعیت شغل برای نمایش بالای صفحه
+     * نشانگر مقصد فعلی برای رسم روی دنیا
      */
-    public String statusText(Player p) {
-        switch (activeJob) {
-            case JOB_TAXI:
-                if (p.driving == null) return "تاکسی: سوار ماشین شو!";
-                if (taxiPassenger == null) return "تاکسی: منتظر مسافر...";
-                if (!passengerOnBoard) return "تاکسی: برو سراغ مسافر";
-                return "تاکسی: مسافر رو برسون";
-            case JOB_COURIER:
-                if (courierStage == 0) return "پیک: بسته رو بردار (" + (int) Math.max(0, courierTimer) + " ثانیه برای جایزه)";
-                return "پیک: بسته رو برسون";
-            case JOB_WAITER:
-                return "گارسونی: مشتری " + G.fa(waiterServedCount + 1) + " از ۳";
-            case JOB_SHOPKEEPER:
-                if (serving) return "فروشندگی: در حال خدمت...";
-                return "فروشندگی: مشتری " + G.fa(shopServedCount + 1) + " از ۴";
+    public float[] currentMarker() {
+        if (activeJob == JOB_TAXI) {
+            if (taxiPassenger != null) return new float[]{taxiBoardX, taxiBoardY};
+            if (taxiDest != null) return taxiDest;
         }
+        if (activeJob == JOB_COURIER && packageSpot != null) return packageSpot;
         return null;
     }
 
-    public int getServedCount(int job) {
-        if (job == JOB_WAITER) return waiterServedCount;
-        if (job == JOB_SHOPKEEPER) return shopServedCount;
-        return 0;
+    public int markerColor() {
+        return activeJob == JOB_TAXI ? 0xFFFFEB3B : 0xFFFF7043;
     }
 
-    public boolean isServing() {
-        return serving;
+    public String jobName() {
+        switch (activeJob) {
+            case JOB_TAXI: return "تاکسی";
+            case JOB_COURIER: return "پیک";
+            case JOB_WAITER: return "گارسون";
+            case JOB_SHOPKEEPER: return "صندوق‌دار";
+            default: return null;
+        }
     }
 
-    public float servingProgress() {
-        return serving ? G.clamp(1f - servingTimer / 1.4f, 0f, 1f) : 0f;
+    public ArrayList<Npc> emptyListForCompile() {
+        return new ArrayList<>();
     }
 }

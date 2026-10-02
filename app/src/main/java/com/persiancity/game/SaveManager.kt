@@ -23,7 +23,11 @@ object SaveManager {
     @JvmStatic
     fun save(context: Context, data: JSONObject) {
         try {
-            File(context.filesDir, FILE_NAME).writeText(data.toString())
+            val tmp = File(context.filesDir, "$FILE_NAME.tmp")
+            tmp.writeText(data.toString())
+            val dst = File(context.filesDir, FILE_NAME)
+            if (dst.exists()) dst.delete()
+            tmp.renameTo(dst)
         } catch (_: Exception) {
         }
     }

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@drawable/bg_gradient"
+    android:padding="20dp">
+
+    <!-- سمت چپ: پیش‌نمایش بزرگ کاراکتر -->
+    <com.persiancity.game.CharPreviewView
+        android:id="@+id/charPreview"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1" />
+
+    <!-- سمت راست: نام و جنسیت -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_gravity="center_vertical"
+        android:orientation="vertical"
+        android:background="@drawable/panel_white"
+        android:padding="22dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/create_title"
+            android:textColor="@color/orange_btn_dark"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:layout_gravity="center_horizontal" />
+
+        <EditText
+            android:id="@+id/etName"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="16dp"
+            android:hint="@string/create_name_hint"
+            android:maxLength="14"
+            android:textSize="20sp"
+            android:textColorHint="#FF90A4AE"
+            android:inputType="textPersonName"
+            android:background="@drawable/field_rounded"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/create_gender_label"
+            android:textColor="@color/brown_text"
+            android:textSize="18sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
+
+            <Button
+                android:id="@+id/btnBoy"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:background="@drawable/gender_btn"
+                android:text="@string/create_boy"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/brown_text"
+                android:selected="true"
+                android:stateListAnimator="@null" />
+
+            <Button
+                android:id="@+id/btnGirl"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/gender_btn"
+                android:text="@string/create_girl"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/brown_text"
+                android:stateListAnimator="@null" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnStartCreate"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/btn_rounded_orange"
+            android:text="@string/create_start"
+            android:textColor="#FFFFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:stateListAnimator="@null" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,41 +1,37 @@
 package com.persiancity.game.game;
 
 /**
- * جوی‌استیک مجازی سمت چپ صفحه
+ * اهرم کنترل مجازی (سمت چپ صفحه)
  */
 public class Joystick {
-
-    public float baseX, baseY;   // مرکز جوی‌استیک (مختصات صفحه)
-    public float knobX, knobY;   // محل دسته
+    public float baseX, baseY;      // مرکز اهرم
+    public float knobX, knobY;      // محل دست
     public boolean active = false;
+    private float radius = 110f;
 
-    public float outX = 0f, outY = 0f;  // خروجی -۱ تا ۱
-
-    private final float radius;
-
-    public Joystick(float radius) {
-        this.radius = radius;
+    public float getDx() {
+        if (!active) return 0f;
+        float d = knobX - baseX;
+        return G.clamp(d / radius, -1f, 1f);
     }
 
-    /**
-     * شروع لمس — اگر داخل ناحیه چپ باشد فعال می‌شود
-     */
-    public boolean onTouchDown(float x, float y, float viewW, float viewH) {
-        if (x < viewW * 0.45f) {
-            active = true;
-            baseX = x;
-            baseY = y;
-            knobX = x;
-            knobY = y;
-            return true;
-        }
-        return false;
+    public float getDy() {
+        if (!active) return 0f;
+        float d = knobY - baseY;
+        return G.clamp(d / radius, -1f, 1f);
     }
 
-    public boolean onTouchMove(float x, float y) {
-        if (!active) return false;
-        float dx = x - baseX;
-        float dy = y - baseY;
+    public void start(float x, float y) {
+        active = true;
+        baseX = x;
+        baseY = y;
+        knobX = x;
+        knobY = y;
+    }
+
+    public void move(float x, float y) {
+        if (!active) return;
+        float dx = x - baseX, dy = y - baseY;
         float len = (float) Math.sqrt(dx * dx + dy * dy);
         if (len > radius) {
             dx = dx / len * radius;
@@ -43,33 +39,25 @@ public class Joystick {
         }
         knobX = baseX + dx;
         knobY = baseY + dy;
-        outX = dx / radius;
-        outY = dy / radius;
-        return true;
     }
 
-    public boolean onTouchUp() {
-        if (!active) return false;
+    public void release() {
         active = false;
         knobX = baseX;
         knobY = baseY;
-        outX = 0f;
-        outY = 0f;
-        return true;
+    }
+
+    public void reset() {
+        active = false;
+        knobX = baseX;
+        knobY = baseY;
     }
 
     public float getRadius() {
         return radius;
     }
 
-    /**
-     * ریست کامل جوی‌استیک (موقع باز شدن منوها)
-     */
-    public void reset() {
-        active = false;
-        outX = 0f;
-        outY = 0f;
-        knobX = baseX;
-        knobY = baseY;
+    public boolean isMoved() {
+        return active && (Math.abs(getDx()) > 0.15f || Math.abs(getDy()) > 0.15f);
     }
 }
