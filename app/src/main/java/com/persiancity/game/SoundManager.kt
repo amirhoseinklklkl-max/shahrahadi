@@ -42,6 +42,7 @@ object SoundManager {
     @Volatile
     private var engineChop = false
 
+    @JvmStatic
     fun init(context: Context) {
         if (cache.isNotEmpty()) return
         prefs = context.getSharedPreferences("shahrshadi_prefs", Context.MODE_PRIVATE)
