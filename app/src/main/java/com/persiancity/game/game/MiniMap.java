@@ -40,7 +40,8 @@ public class MiniMap {
                 0xFF5DAE45,   // ۳ پارک
                 0xFF64B5F6,   // ۴ آب
                 0xFFC9CFD6,   // ۵ پیاده‌رو
-                0xFFE6C99A    // ۶ مسیر پارک
+                0xFFE6C99A,   // ۶ مسیر پارک
+                0xFFC8A66B    // ۷ جاده خاکی روستا
             };
 
             Paint tp = new Paint();
@@ -59,8 +60,8 @@ public class MiniMap {
     }
 
     /**
-     * افزودن نشانگر (مختصات دنیا)
-     * kind: ۰ = نقطه ثابت، ۱ = قطار (پره‌دار)
+     * افزودن نشانگر ثابت (مختصات دنیا)
+     * kind: ۰ = نقطه ثابت، ۱ = متحرک (پره‌دار)
      */
     public void addMarker(float wx, float wy, int color, int kind) {
         markers.add(new float[]{wx, wy});
@@ -72,6 +73,20 @@ public class MiniMap {
         markers.clear();
         markerColors.clear();
         markerTypes.clear();
+    }
+
+    // نشانگرهای پویا (هر فریم تنظیم می‌شوند: قطار، ماشین‌های بازیکن)
+    private final ArrayList<float[]> dynMarkers = new ArrayList<>();
+    private final ArrayList<Integer> dynColors = new ArrayList<>();
+
+    public void clearDynamic() {
+        dynMarkers.clear();
+        dynColors.clear();
+    }
+
+    public void addDynamic(float wx, float wy, int color) {
+        dynMarkers.add(new float[]{wx, wy});
+        dynColors.add(color);
     }
 
     /**
@@ -97,7 +112,7 @@ public class MiniMap {
             c.drawRect(left, top, left + width, top + height, paint);
         }
 
-        // نشانگرها
+        // نشانگرهای ثابت
         for (int i = 0; i < markers.size(); i++) {
             float[] m = markers.get(i);
             float mx = left + m[0] / G.WORLD_W * width;
@@ -105,17 +120,31 @@ public class MiniMap {
             int color = markerColors.get(i);
             int kind = markerTypes.get(i);
             if (kind == 1) {
-                // قطار: پرچم کوچک متحرک
-                dotPaint.setColor(color);
-                c.drawCircle(mx, my, 6f, dotPaint);
-                dotPaint.setColor(0xFFFFFFFF);
-                c.drawCircle(mx, my, 2.5f, dotPaint);
-            } else {
-                dotPaint.setColor(0xFFFFFFFF);
-                c.drawCircle(mx, my, 6.5f, dotPaint);
                 dotPaint.setColor(color);
                 c.drawCircle(mx, my, 5f, dotPaint);
+                dotPaint.setColor(0xFFFFFFFF);
+                c.drawCircle(mx, my, 2f, dotPaint);
+            } else {
+                dotPaint.setColor(0xFFFFFFFF);
+                c.drawCircle(mx, my, 6f, dotPaint);
+                dotPaint.setColor(color);
+                c.drawCircle(mx, my, 4.5f, dotPaint);
             }
+        }
+
+        // نشانگرهای پویا (قطار متحرک، ماشین‌های کاربر)
+        for (int i = 0; i < dynMarkers.size(); i++) {
+            float[] m = dynMarkers.get(i);
+            float mx = left + m[0] / G.WORLD_W * width;
+            float my = top + m[1] / G.WORLD_H * height;
+            mx = G.clamp(mx, left + 3f, left + width - 3f);
+            my = G.clamp(my, top + 3f, top + height - 3f);
+            dotPaint.setColor(0xFFFFFFFF);
+            c.drawCircle(mx, my, 6.5f, dotPaint);
+            dotPaint.setColor(dynColors.get(i));
+            c.drawCircle(mx, my, 4.5f, dotPaint);
+            dotPaint.setColor(0xFF212121);
+            c.drawCircle(mx, my, 1.8f, dotPaint);
         }
 
         // بازیکن: نقطه سفید درشت

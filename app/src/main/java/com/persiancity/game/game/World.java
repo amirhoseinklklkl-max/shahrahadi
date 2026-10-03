@@ -22,6 +22,7 @@ public class World {
     public static final int T_WATER = 4;
     public static final int T_SIDEWALK = 5;
     public static final int T_PATH = 6;
+    public static final int T_DIRT = 7;
 
     public int[][] tileType = new int[G.MAP_H][G.MAP_W];
 
@@ -41,6 +42,18 @@ public class World {
 
     public float fountainX = 0f, fountainY = 0f;
     public float waterfallX = 0f, waterfallY = 0f;
+
+    // شهربازی
+    public float wheelX = 0f, wheelY = 0f;         // چرخ‌وفلک
+    public float carouselX = 0f, carouselY = 0f;   // سرسیر
+
+    // دریاچه و روستا
+    public final ArrayList<float[]> fishSpots = new ArrayList<>();        // x,y,نوع ماهی
+    public final ArrayList<float[]> villageAnimals = new ArrayList<>();   // x,y,نوع (۰=گاو ۱=گوسفند)
+
+    // خانه بازیکن و مرجع بازیکن برای ترمز ماشین‌ها
+    public Building playerHome = null;
+    public Player playerRef = null;
 
     public float spawnX = G.WORLD_W / 2f, spawnY = G.WORLD_H / 2f;
 
@@ -137,6 +150,28 @@ public class World {
         int tx = (int) (x / G.TILE), ty = (int) (y / G.TILE);
         if (tx < 0 || ty < 0 || tx >= G.MAP_W || ty >= G.MAP_H) return T_BUILDING;
         return tileType[ty][tx];
+    }
+
+    /**
+     * آیا نقطه‌ای روی آب است؟ (برای قایق)
+     */
+    public boolean isWaterAt(float x, float y) {
+        return tileAt(x, y) == T_WATER;
+    }
+
+    /**
+     * جستجوی نزدیک‌ترین نقطه قابل پیاده‌روی (برای پیاده شدن از قایق)
+     */
+    public float[] findWalkableNear(float x, float y) {
+        for (float r = 60f; r <= 280f; r += 55f) {
+            for (int a = 0; a < 12; a++) {
+                float ang = (float) (a * Math.PI / 6.0);
+                float px = x + (float) Math.cos(ang) * r;
+                float py = y + (float) Math.sin(ang) * r;
+                if (!isBlocked(px, py, 16f)) return new float[]{px, py};
+            }
+        }
+        return null;
     }
 
     /**
@@ -271,12 +306,18 @@ public class World {
             sprites.drawTree(c, t[0], t[1], t[2]);
         }
 
-        // فواره و آبشار پارک
+        // فواره و آبشار پارک (آبشار داخل آب)
         if (fountainX > 0f) {
             sprites.drawFountain(c, fountainX, fountainY, dayNight.minutes);
         }
         if (waterfallX > 0f) {
             sprites.drawWaterfall(c, waterfallX, waterfallY, dayNight.minutes);
+        }
+
+        // ماهی‌های دریاچه (زیر قایق، روی آب)
+        for (int i = 0; i < fishSpots.size(); i++) {
+            float[] f = fishSpots.get(i);
+            sprites.drawFish(c, f[0], f[1], (int) f[2], dayNight.minutes + i * 1.7f);
         }
 
         // ساختمان‌ها
@@ -307,6 +348,20 @@ public class World {
 
         // حباب حرف NPCها
         sprites.drawBubbles(c, cityNpcs);
+
+        // چرخ‌وفلک و سرسیر شهربازی
+        if (wheelX > 0f) {
+            sprites.drawFerrisWheel(c, wheelX, wheelY, dayNight.minutes);
+        }
+        if (carouselX > 0f) {
+            sprites.drawCarousel(c, carouselX, carouselY, dayNight.minutes);
+        }
+
+        // حیوانات روستا (گاو و گوسفند)
+        for (int i = 0; i < villageAnimals.size(); i++) {
+            float[] a = villageAnimals.get(i);
+            sprites.drawFarmAnimal(c, a[0], a[1], (int) a[2], dayNight.minutes + i * 2.1f);
+        }
 
         // دود
         drawSmoke(c);
@@ -344,6 +399,15 @@ public class World {
                 paint.setColor(0x22000000);
                 c.drawCircle(x + G.TILE * 0.3f, y + G.TILE * 0.6f, 2.5f, paint);
                 c.drawCircle(x + G.TILE * 0.7f, y + G.TILE * 0.3f, 2f, paint);
+                break;
+            case T_DIRT:
+                // جاده خاکی روستا
+                paint.setColor(0xFFC8A66B);
+                c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
+                paint.setColor(0x33000000);
+                c.drawCircle(x + G.TILE * 0.25f, y + G.TILE * 0.35f, 2.5f, paint);
+                c.drawCircle(x + G.TILE * 0.65f, y + G.TILE * 0.7f, 3f, paint);
+                c.drawCircle(x + G.TILE * 0.8f, y + G.TILE * 0.2f, 2f, paint);
                 break;
             case T_BUILDING:
                 paint.setColor(0xFF90A4AE);

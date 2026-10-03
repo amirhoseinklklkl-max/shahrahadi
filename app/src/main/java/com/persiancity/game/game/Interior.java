@@ -69,6 +69,7 @@ public class Interior {
         switch (b.type) {
             case Building.RESTAURANT: return buildRestaurant(b);
             case Building.CAFE:       return buildCafe(b);
+            case Building.BAKERY:     return buildBakery(b);
             case Building.MARKET:     return buildMarket(b);
             case Building.HOME:       return buildHome(b);
             case Building.CINEMA:     return buildCinema(b);
@@ -103,6 +104,16 @@ public class Interior {
         in.addFurniture(90, 330, 120, 36, 0xFFFFCC80, F_TABLE);
         in.addFurniture(420, 330, 120, 36, 0xFFFFCC80, F_TABLE);
         in.addFurniture(520, 40, 80, 80, 0xFF66BB6A, F_PLANT);
+        return in;
+    }
+
+    private static Interior buildBakery(Building b) {
+        Interior in = new Interior(b, 12, 8, "bakery");
+        in.addFurniture(50, 50, 260, 50, 0xFF8D6E63, F_COUNTER);   // پیشخوان نان
+        in.addFurniture(60, 200, 200, 46, 0xFF5D4037, F_SHELF);    // قفسه نان
+        in.addFurniture(360, 200, 200, 46, 0xFF5D4037, F_SHELF);
+        in.addFurniture(120, 330, 140, 40, 0xFFFFCC80, F_TABLE);
+        in.addFurniture(430, 330, 140, 40, 0xFFFFCC80, F_TABLE);
         return in;
     }
 

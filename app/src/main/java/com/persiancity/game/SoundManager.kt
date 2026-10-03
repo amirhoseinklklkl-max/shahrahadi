@@ -68,6 +68,8 @@ object SoundManager {
         )
         cache["crash"] = crashSound()
         cache["whoosh"] = slide(600.0, 150.0, 0.3, 0.3)
+        cache["splash"] = slide(900.0, 180.0, 0.28, 0.45)
+        cache["fish"] = concat(tone(1046.0, 0.07, 0.5), tone(784.0, 0.14, 0.5))
     }
 
     // ---------------- پخش افکت ----------------

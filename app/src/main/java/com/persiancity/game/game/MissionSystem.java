@@ -24,6 +24,11 @@ public class MissionSystem {
     private int current = 0;
     private int completedCount = 0;
 
+    // مأموریت محله‌ای (از شهروندها): برو این وسیله رو از آن ساختمان بگیر
+    private int errandTarget = -1;      // نوع ساختمان هدف
+    private int errandReward = 0;
+    private String errandText = null;
+
     private final GameView view;
     private final World world;
     private final Player player;
@@ -43,18 +48,78 @@ public class MissionSystem {
         missions.add(new Mission("در سوپرمارکت کار کن", "پشت صندوق وایسا و مشتری برون", Building.MARKET, 300));
         missions.add(new Mission("کتاب بخوان", "در کتابخانه نور یک کتاب قرض بگیر", Building.LIBRARY, 120));
         missions.add(new Mission("شکارچی گنج", "برو حوالی پارک بزرگ — یک سکه پنهان است!", Building.HOME, 180));
+        missions.add(new Mission("سفر دریاچه", "به اسکله برو و با قایق دریاچه را بگرد", Building.DOCK, 220));
+        missions.add(new Mission("شهربازی!", "سوار چرخ‌وفلک بزرگ شو", Building.AMUSEMENT, 250));
+        missions.add(new Mission("ماشین اولت", "از فروشگاه ماشین شادی یک ماشین بخر", Building.CARSHOP, 300));
+        missions.add(new Mission("به روستا سفر کن", "نان تازه از نانوایی روستا بخر", Building.BAKERY, 200));
+    }
+
+    // ================= مأموریت محله‌ای (از NPC ها) =================
+
+    /**
+     * یک شهروند مأموریت محله‌ای پیشنهاد می‌دهد — اگر مأموریتی فعال نباشد.
+     * @return متن مأموریت یا null
+     */
+    public String offerErrand() {
+        if (errandTarget >= 0) return null;   // یکی فعال است
+        Object[][] pool = {
+            {Building.BANK, "برایم رسید پس‌انداز از بانک شهر شادی بگیر!", 160},
+            {Building.BAKERY, "نان تازه از نانوایی روستا برام بخر!", 150},
+            {Building.MARKET, "از سوپرمارکت فراوان میوه برام بخر!", 130},
+            {Building.TOYSTORE, "یه عروسک از فروشگاه اسباب‌بازی برام بگیر!", 220},
+            {Building.CAFE, "یه شکلات داغ از کافه شکلات برام بیار!", 140}
+        };
+        int pick = rnd.nextInt(pool.length);
+        errandTarget = (int) pool[pick][0];
+        errandReward = (int) pool[pick][2];
+        errandText = (String) pool[pick][1];
+        SoundManager.play("mission");
+        return errandText;
+    }
+
+    public boolean hasErrand() {
+        return errandTarget >= 0;
+    }
+
+    /**
+     * مکان نشانگر مأموریت محله‌ای (درِ ساختمان هدف) یا null
+     */
+    public float[] errandMarker() {
+        if (errandTarget < 0) return null;
+        Building b = world.buildingByType(errandTarget);
+        return b != null ? new float[]{b.doorX, b.doorY} : null;
+    }
+
+    private void checkErrand() {
+        if (errandTarget < 0) return;
+        Building b = world.buildingByType(errandTarget);
+        if (b == null) {
+            errandTarget = -1;
+            return;
+        }
+        float d = G.dist(player.x, player.y, b.doorX, b.doorY + 34f);
+        if (d < 150f || (world.interior != null && world.interior.building == b)) {
+            player.addMoney(errandReward);
+            SoundManager.play("coin");
+            view.ui.toast("🏃 مأموریت محله‌ای انجام شد! جایزه: " + UIManager.faMoney(errandReward) + " تومان");
+            errandTarget = -1;
+            errandText = null;
+        }
     }
 
     /**
      * متن روی نوار بالای صفحه
      */
     public String hudText() {
+        if (errandText != null) return "🏃 " + errandText;
         if (current >= missions.size()) return null;
         Mission m = missions.get(current);
         return m.title + " (" + G.fa(completedCount + 1) + "/" + G.fa(missions.size()) + ")";
     }
 
     public void update(float dt) {
+        checkErrand();
+
         if (current >= missions.size()) return;
         checkTimer -= dt;
         if (checkTimer > 0f) return;

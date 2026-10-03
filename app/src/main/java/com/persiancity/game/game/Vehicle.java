@@ -18,6 +18,7 @@ public class Vehicle extends Entity {
     public static final int MOTOR = 5;
     public static final int CAR_HELICOPTER = 6;
     public static final int CAR_TRAIN = 7;
+    public static final int CAR_BOAT = 8;
 
     public static final int MODE_TRAFFIC = 0;   // در ترافیک شهر
     public static final int MODE_PARKED = 1;    // پارک شده (قابل خرید/سوار شدن)
@@ -29,6 +30,7 @@ public class Vehicle extends Entity {
     public float speed = 0f;
     public float angle = 0f;          // رادیان
     public int color = 0xFFE53935;
+    public boolean owned = false;     // متعلق به بازیکن است؟
 
     // ترافیک
     public char axis = 'H';           // 'H' افقی / 'V' عمودی
@@ -86,6 +88,7 @@ public class Vehicle extends Entity {
             case MOTOR: return 20f;
             case CAR_BUS: return 44f;
             case CAR_HELICOPTER: return 40f;
+            case CAR_BOAT: return 38f;
             default: return 32f;
         }
     }
@@ -120,7 +123,7 @@ public class Vehicle extends Entity {
 
         switch (mode) {
             case MODE_TRAFFIC:
-                updateTraffic(dt);
+                updateTraffic(dt, world);
                 break;
 
             case MODE_RAIL:
@@ -134,7 +137,23 @@ public class Vehicle extends Entity {
         }
     }
 
-    private void updateTraffic(float dt) {
+    private void updateTraffic(float dt, World world) {
+        // 🛑 ترمز: اگر بازیکن یا عابری جلوی ماشین باشد، ماشین وایستد
+        // (رفع حس «رد شدن از روی ماشین / له شدن عابر»)
+        boolean brake = false;
+        if (world.playerRef != null) {
+            brake = someoneAhead(world.playerRef.x, world.playerRef.y, world);
+        }
+        if (!brake) {
+            for (int i = 0; i < world.cityNpcs.size() && !brake; i++) {
+                Npc n = world.cityNpcs.get(i);
+                brake = someoneAhead(n.x, n.y, null);
+            }
+        }
+        if (brake) {
+            return;   // می‌ایستد ولی سرعت کروز حفظ می‌شود
+        }
+
         float v = speed * laneDir * dt;
         if (axis == 'H') {
             x += v;
@@ -147,6 +166,19 @@ public class Vehicle extends Entity {
             angle = laneDir > 0 ? (float) Math.PI / 2f : (float) -Math.PI / 2f;
             if (y > laneMax) y = laneMin;
             if (y < laneMin) y = laneMax;
+        }
+    }
+
+    private boolean someoneAhead(float tx, float ty, World world) {
+        float dx = tx - x, dy = ty - y;
+        if (axis == 'H') {
+            if (Math.abs(dy) > 55f) return false;
+            float along = dx * laneDir;
+            return along > 10f && along < 130f;
+        } else {
+            if (Math.abs(dx) > 55f) return false;
+            float along = dy * laneDir;
+            return along > 10f && along < 130f;
         }
     }
 

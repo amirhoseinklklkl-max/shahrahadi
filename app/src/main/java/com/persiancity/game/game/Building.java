@@ -19,6 +19,12 @@ public class Building {
     public static final int POLICE = 12;
     public static final int FIRE = 13;
     public static final int TRAIN_STATION = 14;
+    public static final int CARSHOP = 15;
+    public static final int DOCK = 16;
+    public static final int AMUSEMENT = 17;
+    public static final int VILLAGE_HOME = 18;
+    public static final int BAKERY = 19;
+    public static final int FARM = 20;
 
     public final int type;
     public float x, y;          // گوشه بالا-چپ
@@ -26,6 +32,7 @@ public class Building {
     public float doorX, doorY;  // مرکز در (پایین ساختمان)
     public int wallColor;
     public int roofColor;
+    public String label = null; // اسم سفارشی (مثلاً «خانه تو»)
 
     public Building(int type, float x, float y, float w, float h, int wallColor, int roofColor) {
         this.type = type;
@@ -42,7 +49,7 @@ public class Building {
     public static String nameOf(int type) {
         switch (type) {
             case HOME: return "خانه";
-            case BANK: return "بانک شادی";
+            case BANK: return "بانک شهر شادی";
             case HOSPITAL: return "بیمارستان مهربانی";
             case SCHOOL: return "مدرسه دانش";
             case LIBRARY: return "کتابخانه نور";
@@ -56,12 +63,18 @@ public class Building {
             case POLICE: return "کلانتری ۱۰";
             case FIRE: return "آتش‌نشانی";
             case TRAIN_STATION: return "ایستگاه قطار";
+            case CARSHOP: return "فروشگاه ماشین شادی";
+            case DOCK: return "اسکله دریاچه";
+            case AMUSEMENT: return "شهربازی شادی";
+            case VILLAGE_HOME: return "خانه روستایی";
+            case BAKERY: return "نانوایی روستا";
+            case FARM: return "مزرعه روستا";
             default: return "ساختمان";
         }
     }
 
     public String name() {
-        return nameOf(type);
+        return label != null ? label : nameOf(type);
     }
 
     /**
@@ -97,6 +110,18 @@ public class Building {
                 return "🚒 آتش‌نشانی\nماشین‌های قرمز قهرمان! همیشه آماده کمک‌رسانی.";
             case TRAIN_STATION:
                 return "🚂 ایستگاه قطار شهری\nقطار شادی همیشه دور شهر می‌چرخد!\n• با بلیط ۲۰۰ تومانی یک دور کامل سفر کن\n• یا کل قطار را بخر و خودت راننده باش!";
+            case CARSHOP:
+                return "🚗 فروشگاه ماشین شادی\nبهترین ماشین‌های شهر اینجا فروش می‌رود!\n• سدان شادی ۸ هزار تومان\n• اسپرت جت ۱۵ هزار تومان\n• موتور تندر ۴ هزار تومان\nماشینت را بخر و دور شهر بگرد!";
+            case DOCK:
+                return "⚓ اسکله دریاچه\nاینجا قایق شادی منتظر توست — سوار شو و دور دریاچه بگرد!\nکنار اسکله هم می‌توانی ماهیگیری کنی و ماهی بفروشی!";
+            case AMUSEMENT:
+                return "🎡 شهربازی شادی\nچرخ‌وفلک بزرگ و سرسیر کاروسل اینجاست!\nسوار شو و صدای خنده بشنو!";
+            case VILLAGE_HOME:
+                return "🏡 خانه روستایی\nروستایی‌های مهربان اینجا زندگی می‌کنند.\nهوای روستا خیلی پاکیزه است!";
+            case BAKERY:
+                return "🍞 نانوایی روستا\nنان تازه از تنور، همراه با چای و کیک محلی!\nبوی نان تا وسط روستا می‌آید!";
+            case FARM:
+                return "🌾 مزرعه روستا\nگندم، جو و سبزیجات اینجا می‌رویند.\nگاو و گوسفندها همیشه در حال چرا هستند!";
             case HOME:
                 return "🏠 خانه تو!\nاینجا می‌توانی استراحت کنی و انرژیت را پر کنی.\nتخت خوابت منتظر توست!";
             default:

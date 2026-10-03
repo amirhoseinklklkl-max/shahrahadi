@@ -116,13 +116,23 @@ public class UIManager {
     public void layout(float w, float h) {
         vw = w;
         vh = h;
-        float bs = Math.min(150f, h * 0.24f);
+        // ✅ دکمه‌های بزرگ‌تر (درخواست کاربر — قبلاً خیلی کوچک بودند)
+        float bs = Math.min(240f, Math.max(170f, h * 0.29f));
         float margin = 26f;
         btnAction.set(w - margin - bs, h - margin - bs, w - margin, h - margin);
-        btnEnter.set(w - margin - bs * 2.2f, h - margin - bs * 0.46f, w - margin - bs * 1.2f, h - margin + bs * 0.46f);
-        btnLook.set(w - margin - bs * 2.2f, h - margin - bs * 1.05f, w - margin - bs * 1.2f, h - margin - bs * 0.13f);
-        btnPause.set(margin, h - margin - 46f, margin + 92f, h - margin);
-        btnSkipMovie.set(w / 2f - 90f, h - 74f, w / 2f + 90f, h - 18f);
+        btnEnter.set(w - margin - bs * 2.6f, h - margin - bs * 0.55f, w - margin - bs * 1.3f, h - margin + bs * 0.55f);
+        btnLook.set(w - margin - bs * 2.6f, h - margin - bs * 1.25f, w - margin - bs * 1.3f, h - margin - bs * 0.15f);
+        btnPause.set(margin, h - margin - 64f, margin + 136f, h - margin);
+        btnSkipMovie.set(w / 2f - 120f, h - 84f, w / 2f + 120f, h - 18f);
+    }
+
+    /**
+     * آیا نقطه‌ی لمس روی یکی از دکمه‌های حالت بازی است؟
+     * (تا اهرم زیر دکمه‌ها شروع نشود و دکمه‌ها درست کار کنند)
+     */
+    public boolean isPlayButtonAt(float x, float y) {
+        return btnAction.contains(x, y) || btnEnter.contains(x, y)
+                || btnLook.contains(x, y) || btnPause.contains(x, y);
     }
 
     // ================= لمس =================
@@ -201,44 +211,55 @@ public class UIManager {
 
         // نوار بالا: پول + ساعت
         Player pl = view.player;
-        float bw = 250f;
+        float bw = 300f;
         p.setColor(0xE6FFFFFF);
-        c.drawRoundRect(20f, 14f, 20f + bw, 64f, 16, 16, p);
+        c.drawRoundRect(20f, 14f, 20f + bw, 74f, 16, 16, p);
         p.setColor(0xFFE65100);
-        p.setTextSize(26f);
+        p.setTextSize(32f);
         p.setTextAlign(Paint.Align.CENTER);
-        c.drawText("💰 " + faMoney(pl.money), 20f + bw / 2f, 48f, p);
+        c.drawText("💰 " + faMoney(pl.money), 20f + bw / 2f, 55f, p);
 
         String clock = view.world.dayNight.clockText() + (view.world.dayNight.isNight() ? " 🌙" : " ☀");
         p.setColor(0xE6FFFFFF);
-        c.drawRoundRect(20f + bw + 12f, 14f, 20f + bw + 130f, 64f, 16, 16, p);
+        c.drawRoundRect(20f + bw + 12f, 14f, 20f + bw + 162f, 74f, 16, 16, p);
         p.setColor(0xFF37474F);
-        c.drawText(clock, 20f + bw + 71f, 48f, p);
+        p.setTextSize(30f);
+        c.drawText(clock, 20f + bw + 92f, 55f, p);
 
         // نوارهای گرسنگی و انرژی
-        drawBar(c, 20f + bw + 142f, 14f, 120f, pl.hunger, 0xFFEF5350, "🍽");
-        drawBar(c, 20f + bw + 142f, 40f, 120f, pl.energy, 0xFF66BB6A, "⚡");
+        drawBar(c, 20f + bw + 174f, 14f, 150f, pl.hunger, 0xFFEF5350, "🍽");
+        drawBar(c, 20f + bw + 174f, 46f, 150f, pl.energy, 0xFF66BB6A, "⚡");
 
-        // مینی‌مپ
-        float mmW = Math.min(240f, vw * 0.18f);
-        mm.draw(c, vw - mmW - 20f, 80f, mmW, pl.x, pl.y);
+        // مینی‌مپ با نشانگرهای پویا (قطار متحرک + ماشین‌های کاربر)
+        float mmW = Math.min(320f, vw * 0.22f);
+        mm.clearDynamic();
+        Vehicle tr = view.trainVehicle();
+        if (tr != null) mm.addDynamic(tr.x, tr.y, 0xFFD32F2F);
+        for (int i = 0; i < view.world.vehicles.size(); i++) {
+            Vehicle v = view.world.vehicles.get(i);
+            if (v.owned && v.mode == Vehicle.MODE_PARKED
+                    && v.type != Vehicle.CAR_TRAIN) {
+                mm.addDynamic(v.x, v.y, 0xFF00ACC1);
+            }
+        }
+        mm.draw(c, vw - mmW - 20f, 86f, mmW, pl.x, pl.y);
 
         // دکمه مکث
         p.setColor(0xE6FFFFFF);
         c.drawRoundRect(btnPause, 14, 14, p);
         p.setColor(0xFF37474F);
-        p.setTextSize(30f);
-        c.drawText("⏸", btnPause.centerX(), btnPause.centerY() + 10f, p);
+        p.setTextSize(40f);
+        c.drawText("⏸", btnPause.centerX(), btnPause.centerY() + 14f, p);
 
         // دکمه اقدام
         String al = actionLabel;
         if (pl.ridingTrain) al = "پیاده شو";
         if (al != null) {
-            drawButton(c, btnAction, "✋ " + al, 0xFFFF9800, 24f);
+            drawButton(c, btnAction, "✋ " + al, 0xFFFF9800, 30f);
         }
         if (nearBuilding != null) {
-            drawButton(c, btnEnter, "🚪 وارد شو", 0xFF43A047, 22f);
-            drawButton(c, btnLook, "👀 نگاه کن", 0xFF1E88E5, 22f);
+            drawButton(c, btnEnter, "🚪 وارد شو", 0xFF43A047, 28f);
+            drawButton(c, btnLook, "👀 نگاه کن", 0xFF1E88E5, 28f);
         }
 
         // فیلم سینما: دکمه رد کردن
@@ -248,23 +269,23 @@ public class UIManager {
 
         // پیام
         if (toast != null && toastTimer > 0f) {
-            p.setTextSize(24f);
-            float tw = p.measureText(toast) + 60f;
+            p.setTextSize(28f);
+            float tw = p.measureText(toast) + 70f;
             p.setColor(0xE637474F);
-            c.drawRoundRect(vw / 2f - tw / 2f, vh - 130f, vw / 2f + tw / 2f, vh - 70f, 18, 18, p);
+            c.drawRoundRect(vw / 2f - tw / 2f, vh - 150f, vw / 2f + tw / 2f, vh - 82f, 18, 18, p);
             p.setColor(0xFFFFFFFF);
-            c.drawText(toast, vw / 2f, vh - 90f, p);
+            c.drawText(toast, vw / 2f, vh - 106f, p);
         }
 
         // مأموریت
         String mission = view.missions.hudText();
         if (mission != null && state == UI_PLAY) {
-            p.setTextSize(20f);
-            float tw = p.measureText(mission) + 44f;
+            p.setTextSize(24f);
+            float tw = p.measureText(mission) + 52f;
             p.setColor(0xD9FFF3E0);
-            c.drawRoundRect(vw / 2f - tw / 2f, 14f, vw / 2f + tw / 2f, 62f, 16, 16, p);
+            c.drawRoundRect(vw / 2f - tw / 2f, 14f, vw / 2f + tw / 2f, 66f, 16, 16, p);
             p.setColor(0xFFE65100);
-            c.drawText("🎯 " + mission, vw / 2f, 45f, p);
+            c.drawText("🎯 " + mission, vw / 2f, 48f, p);
         }
 
         // پنل منو

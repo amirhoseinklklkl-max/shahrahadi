@@ -34,6 +34,21 @@ public class ShopSystem {
     private static final int HELI_PRICE = 60000;
     private static final int TRAIN_PRICE = 50000;
     private static final int TRAIN_TICKET = 200;
+    private static final int WHEEL_PRICE = 300;
+    private static final int CAROUSEL_PRICE = 250;
+
+    private static final Object[][] CARS_FOR_SALE = {
+        {"🚗 سدان شادی", Vehicle.CAR_SEDAN, 8000},
+        {"🏎 اسپرت جت", Vehicle.CAR_SPORT, 15000},
+        {"🛵 موتور تندر", Vehicle.MOTOR, 4000},
+        {"🚙 وانت بار", Vehicle.CAR_PICKUP, 11000}
+    };
+
+    private static final Object[][] BAKERY_FOODS = {
+        {"نان بربری تازه", 40, 20f, 12f},
+        {"کیک محلی", 80, 18f, 14f},
+        {"چای کمرگیلد", 30, 6f, 18f}
+    };
 
     private final GameView view;
     private final World world;
@@ -82,6 +97,13 @@ public class ShopSystem {
             case Building.HOSPITAL: openHospitalMenu(); break;
             case Building.BANK: openBankMenu(); break;
             case Building.TOYSTORE: openToyMenu(); break;
+            case Building.CARSHOP: openCarshopMenu(); break;
+            case Building.DOCK: openDockMenu(); break;
+            case Building.AMUSEMENT: openAmusementMenu(); break;
+            case Building.BAKERY:
+                world.enterInterior(b, player);
+                openFoodMenu("نانوایی روستا", BAKERY_FOODS, "بوی نان تازه!");
+                break;
             default:
                 world.enterInterior(b, player);
                 openInfoMenu(Building.nameOf(b.type), b.info());
@@ -229,10 +251,15 @@ public class ShopSystem {
                     () -> {
                         if (pay(HELI_PRICE)) {
                             view.heliOwned = true;
-                            Building hp = world.buildingByType(Building.HELIPORT);
-                            Vehicle heli = new Vehicle(Vehicle.CAR_HELICOPTER, hp.doorX, hp.y + hp.h * 0.42f);
-                            heli.mode = Vehicle.MODE_PARKED;
-                            world.vehicles.add(heli);
+                            // هلی پارک‌شده هلی‌پورت مال بازیکن می‌شود (هلی تکراری ساخته نمی‌شود)
+                            Vehicle heli = findParked(Vehicle.CAR_HELICOPTER);
+                            if (heli == null) {
+                                Building hp = world.buildingByType(Building.HELIPORT);
+                                heli = new Vehicle(Vehicle.CAR_HELICOPTER, hp.doorX, hp.y + hp.h * 0.42f);
+                                heli.mode = Vehicle.MODE_PARKED;
+                                world.vehicles.add(heli);
+                            }
+                            heli.owned = true;
                             ui.closeMenu();
                             ui.toast("هلیکوپتر تو خریده شد! 🚁 سوار شو!");
                         }
@@ -309,6 +336,105 @@ public class ShopSystem {
                         ui.toast("تو راننده قطار شدی! 🚂 دکمه اقدام = پیاده شدن");
                     }));
         }
+        ui.openMenu(m);
+    }
+
+    // ================= فروشگاه ماشین 🚗 =================
+
+    private void openCarshopMenu() {
+        UIManager.Menu m = new UIManager.Menu("فروشگاه ماشین شادی — تکون خوردن توپ!");
+        for (Object[] car : CARS_FOR_SALE) {
+            String name = (String) car[0];
+            final int vType = (int) car[1];
+            int price = (int) car[2];
+            m.items.add(new UIManager.MenuItem(name, UIManager.faMoney(price) + " تومان — همین حالا تحویل!",
+                    () -> buyVehicle(vType, price, name)));
+        }
+        m.items.add(new UIManager.MenuItem("ℹ راهنما", "نزدیک ماشینت که وایسی دکمه اقدام (✋) سوارت می‌کند",
+                () -> ui.openInfo("چطور سوار شوم؟", "بعد از خرید، ماشین جلوی فروشگاه پارک می‌شود.\n\nنزدیکش برو؛ دکمه نارنجی اقدام (✋ سوار شو) ظاهر می‌شود.\nبا اهرم بران!\nبرای پیاده شدن دوباره دکمه اقدام را بزن.")));
+        ui.openMenu(m);
+    }
+
+    private void buyVehicle(int vType, int price, String name) {
+        if (!pay(price)) return;
+        Building shop = world.buildingByType(Building.CARSHOP);
+        Vehicle v = new Vehicle(vType, 0, 0);
+        v.owned = true;
+        v.mode = Vehicle.MODE_PARKED;
+        // جای پارک جلوی فروشگاه — چند ردیف
+        if (shop != null) {
+            int n = 0;
+            for (Vehicle o : world.vehicles) if (o.owned && o != v) n++;
+            v.x = shop.x + shop.w / 2f + ((n % 3) - 1) * 110f;
+            v.y = shop.doorY + 70f + (n / 3) * 90f;
+            if (world.isBlocked(v.x, v.y, 20f)) {
+                v.x = shop.x + shop.w / 2f;
+                v.y = shop.doorY + 80f;
+            }
+        } else {
+            v.x = player.x + 80f;
+            v.y = player.y + 40f;
+        }
+        v.color = Vehicle.CAR_COLORS[(int) (Math.random() * Vehicle.CAR_COLORS.length)];
+        world.vehicles.add(v);
+        ui.closeMenu();
+        ui.toast("🎉 تبریک! " + name + " مال تو شد — جلوی فروشگاه پارک شد!");
+    }
+
+    // ================= اسکله و قایق ⚓ =================
+
+    private void openDockMenu() {
+        UIManager.Menu m = new UIManager.Menu("اسکله دریاچه — قایق منتظر است!");
+        m.items.add(new UIManager.MenuItem("⚓ سوار قایق شو", "قایق کنار اسکله مستقر است — رایگان!",
+                () -> {
+                    Vehicle boat = findParked(Vehicle.CAR_BOAT);
+                    if (boat == null) {
+                        ui.toast("قایق پیدا نشد!");
+                        return;
+                    }
+                    if (G.dist(player.x, player.y, boat.x, boat.y) > 500f) {
+                        ui.toast("قایق باید نزدیک باشد — به کنار اسکله برو!");
+                        return;
+                    }
+                    player.driving = boat;
+                    boat.mode = Vehicle.MODE_PLAYER;
+                    player.x = boat.x;
+                    player.y = boat.y;
+                    ui.closeMenu();
+                    SoundManager.play("splash");
+                    ui.toast("سوار قایق شدی! ⛵ با اهرم روی دریاچه بگرد — دکمه اقدام = پیاده شدن");
+                }));
+        m.items.add(new UIManager.MenuItem("🎣 راهنمای ماهیگیری", "چطور ماهی بگیرم؟",
+                () -> ui.openInfo("ماهیگیری", "کنار اسکله وایسا؛ دکمه اقدام (✋ ماهیگیری) را بزن!\n\nهر ماهی قیمت خودش را دارد:\n🐟 ماهی نقره‌ای ۶۰ تومان\n🐠 ماهی رنگارنگ ۱۰۰ تومان\n🦈 ماهی خوششانسی ۱۶۰ تومان!")));
+        ui.openMenu(m);
+    }
+
+    // ================= شهربازی 🎡 =================
+
+    private void openAmusementMenu() {
+        UIManager.Menu m = new UIManager.Menu("شهربازی شادی — صدای خنده!");
+        m.items.add(new UIManager.MenuItem("🎡 چرخ‌وفلک بزرگ", UIManager.faMoney(WHEEL_PRICE) + " تومان — یک چرخ کامل بالا!",
+                () -> {
+                    if (pay(WHEEL_PRICE)) {
+                        ui.closeMenu();
+                        view.startWheelRide();
+                    }
+                }));
+        m.items.add(new UIManager.MenuItem("🎠 سرسیر کاروسل", UIManager.faMoney(CAROUSEL_PRICE) + " تومان — اسب چوبی تو!",
+                () -> {
+                    if (pay(CAROUSEL_PRICE)) {
+                        ui.closeMenu();
+                        view.startCarouselRide();
+                    }
+                }));
+        m.items.add(new UIManager.MenuItem("🍿 پاپ‌کورن", "۸۰ تومان — ترد و خوشمزه!",
+                () -> {
+                    if (pay(80)) {
+                        player.eat(12f, 8f);
+                        view.fx("eat");
+                        ui.toast("پاپ‌کورن خوردی! 🍿");
+                    }
+                }));
         ui.openMenu(m);
     }
 
