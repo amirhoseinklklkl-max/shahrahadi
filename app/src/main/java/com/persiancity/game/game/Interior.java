@@ -79,6 +79,8 @@ public class Interior {
             case Building.BANK:       return buildBank(b);
             case Building.HOSPITAL:   return buildHospital(b);
             case Building.TOYSTORE:   return buildToystore(b);
+            case Building.CLOTHES:    return buildClothes(b);
+            case Building.AIRPORT:    return buildAirport(b);
             default: return null;
         }
     }
@@ -158,20 +160,42 @@ public class Interior {
     }
 
     private static Interior buildZoo(Building b) {
-        Interior in = new Interior(b, 20, 12, "zoo");
-        // ۶ قلمرو نرده‌ای با ۶ حیوان
-        int[] types = {0, 1, 2, 3, 4, 5};   // شیر، فیل، میمون، گورخر، پنگوئن، زرافه
+        Interior in = new Interior(b, 26, 13, "zoo");
+        // ✅ ۱۰ قلمرو نرده‌ای با ۱۰ حیوان (قبلاً ۶ تا بود)
+        int[] types = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        // شیر، فیل، میمون، گورخر، پنگوئن، زرافه، خرس، ببر، پاندا، شتر
         int pen = 0;
         for (int row = 0; row < 2; row++) {
-            for (int col = 0; col < 3; col++) {
-                float px = (1.0f + col * 6.1f) * G.TILE;
-                float py = (0.8f + row * 5.4f) * G.TILE;
-                in.addFurniture(px, py, 5.4f * G.TILE, 4.6f * G.TILE, 0xFF8D6E63, F_FENCE);
+            for (int col = 0; col < 5; col++) {
+                float px = (0.5f + col * 5.0f) * G.TILE;
+                float py = (0.7f + row * 5.9f) * G.TILE;
+                in.addFurniture(px, py, 4.5f * G.TILE, 5.1f * G.TILE, 0xFF8D6E63, F_FENCE);
                 in.animalTypes.add(types[pen]);
-                in.animalPos.add(new float[]{px + 2.7f * G.TILE, py + 2.6f * G.TILE});
+                in.animalPos.add(new float[]{px + 2.25f * G.TILE, py + 2.8f * G.TILE});
                 pen++;
             }
         }
+        return in;
+    }
+
+    private static Interior buildClothes(Building b) {
+        Interior in = new Interior(b, 13, 9, "clothes");
+        in.addFurniture(40, 60, 220, 46, 0xFFF06292, F_SHELF);
+        in.addFurniture(320, 60, 220, 46, 0xFF42A5F5, F_SHELF);
+        in.addFurniture(600, 60, 220, 46, 0xFFFFB74D, F_SHELF);
+        in.addFurniture(60, 240, 90, 150, 0xFFB0BEC5, F_COUNTER);   // مانتین
+        in.addFurniture(500, 240, 160, 44, 0xFF8D6E63, F_TABLE);
+        in.addFurniture(700, 240, 80, 80, 0xFF66BB6A, F_PLANT);
+        return in;
+    }
+
+    private static Interior buildAirport(Building b) {
+        Interior in = new Interior(b, 15, 8, "airport");
+        in.addFurniture(60, 60, 300, 56, 0xFF455A64, F_COUNTER);   // پیشخوان پرواز
+        for (int i = 0; i < 4; i++) {
+            in.addFurniture(80 + i * 170f, 260, 120, 44, 0xFF90A4AE, F_TABLE);
+        }
+        in.addFurniture(620, 50, 130, 84, 0xFF37474F, F_TV);       // تخته پرواز
         return in;
     }
 

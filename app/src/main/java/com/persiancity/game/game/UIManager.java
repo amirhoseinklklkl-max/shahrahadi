@@ -28,6 +28,7 @@ public class UIManager {
     private final RectF btnEnter = new RectF();
     private final RectF btnLook = new RectF();
     private final RectF btnPause = new RectF();
+    private final RectF btnExitInt = new RectF();   // ✅ دکمه خروج از ساختمان
     public final RectF btnSkipMovie = new RectF();
     private final ArrayList<RectF> menuItemRects = new ArrayList<>();
     private final RectF menuPanel = new RectF();
@@ -117,13 +118,14 @@ public class UIManager {
         vw = w;
         vh = h;
         // ✅ دکمه‌های بزرگ‌تر (درخواست کاربر — قبلاً خیلی کوچک بودند)
-        float bs = Math.min(240f, Math.max(170f, h * 0.29f));
+        float bs = Math.min(260f, Math.max(180f, h * 0.31f));
         float margin = 26f;
         btnAction.set(w - margin - bs, h - margin - bs, w - margin, h - margin);
         btnEnter.set(w - margin - bs * 2.6f, h - margin - bs * 0.55f, w - margin - bs * 1.3f, h - margin + bs * 0.55f);
         btnLook.set(w - margin - bs * 2.6f, h - margin - bs * 1.25f, w - margin - bs * 1.3f, h - margin - bs * 0.15f);
-        btnPause.set(margin, h - margin - 64f, margin + 136f, h - margin);
-        btnSkipMovie.set(w / 2f - 120f, h - 84f, w / 2f + 120f, h - 18f);
+        btnPause.set(margin, h - margin - 68f, margin + 146f, h - margin);
+        btnExitInt.set(margin, h - margin - 178f, margin + 224f, h - margin - 84f);
+        btnSkipMovie.set(w / 2f - 130f, h - 90f, w / 2f + 130f, h - 20f);
     }
 
     /**
@@ -132,7 +134,8 @@ public class UIManager {
      */
     public boolean isPlayButtonAt(float x, float y) {
         return btnAction.contains(x, y) || btnEnter.contains(x, y)
-                || btnLook.contains(x, y) || btnPause.contains(x, y);
+                || btnLook.contains(x, y) || btnPause.contains(x, y)
+                || btnExitInt.contains(x, y);
     }
 
     // ================= لمس =================
@@ -145,6 +148,8 @@ public class UIManager {
             switch (state) {
                 case UI_PLAY:
                     if (btnAction.contains(x, y)) return "action";
+                    // ✅ دکمه خروج از ساختمان — همیشه داخل محیط داخلی در دسترس است
+                    if (view.world.interior != null && btnExitInt.contains(x, y)) return "exitint";
                     if (nearBuilding != null && btnEnter.contains(x, y)) return "enter";
                     if (nearBuilding != null && btnLook.contains(x, y)) return "look";
                     if (btnPause.contains(x, y)) return "pause";
@@ -176,13 +181,13 @@ public class UIManager {
                     break;
 
                 case UI_PAUSE: {
-                    float pw = Math.min(520f, vw * 0.5f);
+                    float pw = Math.min(560f, vw * 0.55f);
                     float px = vw / 2f - pw / 2f;
-                    float py = vh / 2f - 250f;
+                    float py = vh / 2f - 270f;
                     if (x > px && x < px + pw) {
                         for (int i = 0; i < 4; i++) {
-                            float by = py + 90f + i * 100f;
-                            if (y > by && y < by + 88f) {
+                            float by = py + 96f + i * 106f;
+                            if (y > by && y < by + 92f) {
                                 return new String[]{"resume", "sound", "save", "exitmenu"}[i];
                             }
                         }
@@ -211,55 +216,61 @@ public class UIManager {
 
         // نوار بالا: پول + ساعت
         Player pl = view.player;
-        float bw = 300f;
+        float bw = 310f;
         p.setColor(0xE6FFFFFF);
-        c.drawRoundRect(20f, 14f, 20f + bw, 74f, 16, 16, p);
+        c.drawRoundRect(20f, 14f, 20f + bw, 78f, 16, 16, p);
         p.setColor(0xFFE65100);
-        p.setTextSize(32f);
+        p.setTextSize(34f);
         p.setTextAlign(Paint.Align.CENTER);
-        c.drawText("💰 " + faMoney(pl.money), 20f + bw / 2f, 55f, p);
+        c.drawText("💰 " + faMoney(pl.money), 20f + bw / 2f, 58f, p);
 
         String clock = view.world.dayNight.clockText() + (view.world.dayNight.isNight() ? " 🌙" : " ☀");
         p.setColor(0xE6FFFFFF);
-        c.drawRoundRect(20f + bw + 12f, 14f, 20f + bw + 162f, 74f, 16, 16, p);
+        c.drawRoundRect(20f + bw + 12f, 14f, 20f + bw + 172f, 78f, 16, 16, p);
         p.setColor(0xFF37474F);
-        p.setTextSize(30f);
-        c.drawText(clock, 20f + bw + 92f, 55f, p);
+        p.setTextSize(32f);
+        c.drawText(clock, 20f + bw + 97f, 58f, p);
 
         // نوارهای گرسنگی و انرژی
-        drawBar(c, 20f + bw + 174f, 14f, 150f, pl.hunger, 0xFFEF5350, "🍽");
-        drawBar(c, 20f + bw + 174f, 46f, 150f, pl.energy, 0xFF66BB6A, "⚡");
+        drawBar(c, 20f + bw + 184f, 14f, 155f, pl.hunger, 0xFFEF5350, "🍽");
+        drawBar(c, 20f + bw + 184f, 48f, 155f, pl.energy, 0xFF66BB6A, "⚡");
 
-        // مینی‌مپ با نشانگرهای پویا (قطار متحرک + ماشین‌های کاربر)
+        // مینی‌مپ با نشانگرهای پویا (هر دو قطار + ماشین‌های کاربر)
         float mmW = Math.min(320f, vw * 0.22f);
         mm.clearDynamic();
-        Vehicle tr = view.trainVehicle();
-        if (tr != null) mm.addDynamic(tr.x, tr.y, 0xFFD32F2F);
         for (int i = 0; i < view.world.vehicles.size(); i++) {
             Vehicle v = view.world.vehicles.get(i);
-            if (v.owned && v.mode == Vehicle.MODE_PARKED
-                    && v.type != Vehicle.CAR_TRAIN) {
+            if (v.type == Vehicle.CAR_TRAIN && v.isActive()) {
+                mm.addDynamic(v.x, v.y, v.railIndex == 0 ? 0xFFD32F2F : 0xFFFB8C00);
+            }
+            if (v.owned && (v.mode == Vehicle.MODE_PARKED || v.mode == Vehicle.MODE_GRAZE)
+                    && v.type != Vehicle.CAR_TRAIN && v.type != Vehicle.CAR_HORSE) {
                 mm.addDynamic(v.x, v.y, 0xFF00ACC1);
             }
         }
-        mm.draw(c, vw - mmW - 20f, 86f, mmW, pl.x, pl.y);
+        mm.draw(c, vw - mmW - 20f, 90f, mmW, pl.x, pl.y);
 
         // دکمه مکث
         p.setColor(0xE6FFFFFF);
         c.drawRoundRect(btnPause, 14, 14, p);
         p.setColor(0xFF37474F);
-        p.setTextSize(40f);
-        c.drawText("⏸", btnPause.centerX(), btnPause.centerY() + 14f, p);
+        p.setTextSize(42f);
+        c.drawText("⏸", btnPause.centerX(), btnPause.centerY() + 15f, p);
 
         // دکمه اقدام
         String al = actionLabel;
         if (pl.ridingTrain) al = "پیاده شو";
         if (al != null) {
-            drawButton(c, btnAction, "✋ " + al, 0xFFFF9800, 30f);
+            drawButton(c, btnAction, "✋ " + al, 0xFFFF9800, 32f);
         }
         if (nearBuilding != null) {
-            drawButton(c, btnEnter, "🚪 وارد شو", 0xFF43A047, 28f);
-            drawButton(c, btnLook, "👀 نگاه کن", 0xFF1E88E5, 28f);
+            drawButton(c, btnEnter, "🚪 وارد شو", 0xFF43A047, 30f);
+            drawButton(c, btnLook, "👀 نگاه کن", 0xFF1E88E5, 30f);
+        }
+
+        // ✅ دکمه خروج از ساختمان — داخل محیط داخلی همیشه دیده می‌شود
+        if (view.world.interior != null && state == UI_PLAY) {
+            drawButton(c, btnExitInt, "🚪 خروج", 0xFFE53935, 30f);
         }
 
         // فیلم سینما: دکمه رد کردن
@@ -269,23 +280,23 @@ public class UIManager {
 
         // پیام
         if (toast != null && toastTimer > 0f) {
-            p.setTextSize(28f);
+            p.setTextSize(33f);
             float tw = p.measureText(toast) + 70f;
             p.setColor(0xE637474F);
-            c.drawRoundRect(vw / 2f - tw / 2f, vh - 150f, vw / 2f + tw / 2f, vh - 82f, 18, 18, p);
+            c.drawRoundRect(vw / 2f - tw / 2f, vh - 160f, vw / 2f + tw / 2f, vh - 88f, 18, 18, p);
             p.setColor(0xFFFFFFFF);
-            c.drawText(toast, vw / 2f, vh - 106f, p);
+            c.drawText(toast, vw / 2f, vh - 113f, p);
         }
 
         // مأموریت
         String mission = view.missions.hudText();
         if (mission != null && state == UI_PLAY) {
-            p.setTextSize(24f);
+            p.setTextSize(27f);
             float tw = p.measureText(mission) + 52f;
             p.setColor(0xD9FFF3E0);
-            c.drawRoundRect(vw / 2f - tw / 2f, 14f, vw / 2f + tw / 2f, 66f, 16, 16, p);
+            c.drawRoundRect(vw / 2f - tw / 2f, 14f, vw / 2f + tw / 2f, 68f, 16, 16, p);
             p.setColor(0xFFE65100);
-            c.drawText("🎯 " + mission, vw / 2f, 48f, p);
+            c.drawText("🎯 " + mission, vw / 2f, 50f, p);
         }
 
         // پنل منو
@@ -309,12 +320,12 @@ public class UIManager {
 
     private void drawBar(Canvas c, float x, float y, float w, float v, int color, String icon) {
         p.setColor(0xE6FFFFFF);
-        c.drawRoundRect(x, y, x + w, y + 24f, 12, 12, p);
+        c.drawRoundRect(x, y, x + w, y + 26f, 12, 12, p);
         p.setColor(color);
-        c.drawRoundRect(x + 3f, y + 3f, x + 3f + (w - 6f) * G.clamp(v / 100f, 0f, 1f), y + 21f, 9, 9, p);
+        c.drawRoundRect(x + 3f, y + 3f, x + 3f + (w - 6f) * G.clamp(v / 100f, 0f, 1f), y + 23f, 9, 9, p);
         p.setTextAlign(Paint.Align.LEFT);
-        p.setTextSize(18f);
-        c.drawText(icon, x + 8f, y + 18f, p);
+        p.setTextSize(20f);
+        c.drawText(icon, x + 8f, y + 20f, p);
         p.setTextAlign(Paint.Align.CENTER);
     }
 
@@ -331,10 +342,10 @@ public class UIManager {
     }
 
     private void drawMenu(Canvas c) {
-        float pw = Math.min(640f, vw * 0.72f);
+        float pw = Math.min(700f, vw * 0.78f);
         int n = menu.items.size();
-        float rowH = 78f;
-        float ph = 120f + n * rowH;
+        float rowH = 88f;
+        float ph = 128f + n * rowH;
         float px = vw / 2f - pw / 2f;
         float py = Math.max(40f, vh / 2f - ph / 2f);
         menuPanel.set(px, py, px + pw, py + ph);
@@ -342,37 +353,37 @@ public class UIManager {
         p.setColor(0xF7FFF8E1);
         c.drawRoundRect(menuPanel, 24, 24, p);
         p.setColor(0xFFFF9800);
-        c.drawRoundRect(px, py, px + pw, py + 64f, 24, 24, p);
+        c.drawRoundRect(px, py, px + pw, py + 70f, 24, 24, p);
         p.setColor(0xFFFF9800);
-        c.drawRect(px, py + 34f, px + pw, py + 64f, p);
+        c.drawRect(px, py + 36f, px + pw, py + 70f, p);
         p.setColor(0xFFFFFFFF);
-        p.setTextSize(28f);
-        c.drawText(menu.title, vw / 2f, py + 42f, p);
+        p.setTextSize(31f);
+        c.drawText(menu.title, vw / 2f, py + 46f, p);
 
         menuItemRects.clear();
         for (int i = 0; i < n; i++) {
             MenuItem it = menu.items.get(i);
-            float ry = py + 78f + i * rowH;
-            RectF rr = new RectF(px + 20f, ry, px + pw - 20f, ry + rowH - 10f);
+            float ry = py + 84f + i * rowH;
+            RectF rr = new RectF(px + 20f, ry, px + pw - 20f, ry + rowH - 12f);
             menuItemRects.add(rr);
             p.setColor(0xFFFFFFFF);
             c.drawRoundRect(rr, 14, 14, p);
             p.setColor(0xFF4E342E);
             p.setTextAlign(Paint.Align.RIGHT);
-            p.setTextSize(24f);
-            c.drawText(it.name, rr.right - 20f, rr.top + 30f, p);
+            p.setTextSize(28f);
+            c.drawText(it.name, rr.right - 20f, rr.top + 34f, p);
             if (it.desc != null && !it.desc.isEmpty()) {
                 p.setColor(0xFF8D6E63);
-                p.setTextSize(18f);
-                c.drawText(it.desc, rr.right - 20f, rr.top + 56f, p);
+                p.setTextSize(21f);
+                c.drawText(it.desc, rr.right - 20f, rr.top + 62f, p);
             }
             p.setTextAlign(Paint.Align.CENTER);
         }
     }
 
     private void drawInfo(Canvas c) {
-        float pw = Math.min(700f, vw * 0.8f);
-        float ph = Math.min(430f, vh * 0.7f);
+        float pw = Math.min(780f, vw * 0.86f);
+        float ph = Math.min(560f, vh * 0.8f);
         float px = vw / 2f - pw / 2f;
         float py = vh / 2f - ph / 2f;
         infoPanel.set(px, py, px + pw, py + ph);
@@ -382,68 +393,68 @@ public class UIManager {
         p.setColor(0xFFFFFFFF);
         c.drawRoundRect(infoPanel, 26, 26, p);
         p.setColor(0xFFFF9800);
-        c.drawRoundRect(px, py, px + pw, py + 70f, 26, 26, p);
+        c.drawRoundRect(px, py, px + pw, py + 76f, 26, 26, p);
         p.setColor(0xFFFF9800);
-        c.drawRect(px, py + 36f, px + pw, py + 70f, p);
+        c.drawRect(px, py + 40f, px + pw, py + 76f, p);
         p.setColor(0xFFFFFFFF);
-        p.setTextSize(28f);
-        c.drawText(infoTitle, vw / 2f, py + 46f, p);
+        p.setTextSize(31f);
+        c.drawText(infoTitle, vw / 2f, py + 50f, p);
 
         p.setColor(0xFF4E342E);
-        p.setTextSize(21f);
+        p.setTextSize(25f);
         p.setTextAlign(Paint.Align.RIGHT);
         // چند خطی
         String[] lines = infoText.split("\n");
-        float ly = py + 112f;
+        float ly = py + 122f;
         for (String line : lines) {
-            if (line.length() > 46) {
+            if (line.length() > 40) {
                 // شکستن خط طولانی
-                int cut = 46;
-                for (int i = 40; i < Math.min(line.length(), 46); i++) {
+                int cut = 40;
+                for (int i = 34; i < Math.min(line.length(), 40); i++) {
                     if (line.charAt(i) == ' ') { cut = i; break; }
                 }
                 c.drawText(line.substring(0, cut), px + pw - 30f, ly, p);
-                ly += 32f;
+                ly += 38f;
                 c.drawText(line.substring(cut), px + pw - 30f, ly, p);
-                ly += 34f;
+                ly += 40f;
             } else {
                 c.drawText(line, px + pw - 30f, ly, p);
-                ly += 34f;
+                ly += 40f;
             }
         }
         p.setTextAlign(Paint.Align.CENTER);
         p.setColor(0xFF9E9E9E);
-        p.setTextSize(17f);
+        p.setTextSize(19f);
         c.drawText("برای بستن، بیرون باکس را لمس کن", vw / 2f, py + ph - 22f, p);
     }
 
     private void drawPause(Canvas c) {
         p.setColor(0x88000000);
         c.drawRect(0, 0, vw, vh, p);
-        float pw = Math.min(520f, vw * 0.5f);
+        float pw = Math.min(560f, vw * 0.55f);
         float px = vw / 2f - pw / 2f;
-        float py = vh / 2f - 250f;
+        float py = vh / 2f - 270f;
 
         p.setColor(0xFFFFFFFF);
-        c.drawRoundRect(px, py, px + pw, py + 500f, 26, 26, p);
+        c.drawRoundRect(px, py, px + pw, py + 540f, 26, 26, p);
         p.setColor(0xFFE65100);
-        p.setTextSize(32f);
-        c.drawText("مکث", vw / 2f, py + 60f, p);
+        p.setTextSize(34f);
+        c.drawText("مکث", vw / 2f, py + 64f, p);
 
-        drawPauseBtn(c, px + 30f, py + 90f, pw - 60f, "▶ ادامه بازی", 0xFF43A047);
-        drawPauseBtn(c, px + 30f, py + 190f, pw - 60f,
+        drawPauseBtn(c, px + 30f, py + 96f, pw - 60f, "▶ ادامه بازی", 0xFF43A047);
+        drawPauseBtn(c, px + 30f, py + 202f, pw - 60f,
                 SoundManager.isMuted() ? "🔇 صدا: خاموش" : "🔊 صدا: روشن", 0xFF1E88E5);
-        drawPauseBtn(c, px + 30f, py + 290f, pw - 60f, "💾 ذخیره خودکار فعال ✔", 0xFFF9A825);
-        drawPauseBtn(c, px + 30f, py + 390f, pw - 60f, "🚪 خروج به منو", 0xFFE53935);
+        drawPauseBtn(c, px + 30f, py + 308f, pw - 60f, "💾 ذخیره خودکار فعال ✔", 0xFFF9A825);
+        drawPauseBtn(c, px + 30f, py + 414f, pw - 60f, "🚪 خروج به منو", 0xFFE53935);
     }
 
     private void drawPauseBtn(Canvas c, float x, float y, float w, String label, int color) {
-        RectF r = new RectF(x, y, x + w, y + 86f);
+        RectF r = new RectF(x, y, x + w, y + 92f);
         p.setColor(color);
         c.drawRoundRect(r, 18, 18, p);
         p.setColor(0xFFFFFFFF);
-        p.setTextSize(26f);
-        c.drawText(label, r.centerX(), r.centerY() + 9f, p);
+        p.setTextSize(29f);
+        c.drawText(label, r.centerX(), r.centerY() + 10f, p);
     }
 
     private void drawJoystick(Canvas c) {

@@ -37,6 +37,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public boolean heliOwned = false;
     public boolean trainOwned = false;
 
+    // استایل‌های لباس خریده‌شده (۰ آبی و ۵ صورتی پیش‌فرض مال خودت است)
+    public final boolean[] outfitOwned = new boolean[SpriteLib.OUTFITS.length];
+
     // سواري شهربازی: ۰=هیچ ۱=چرخ‌وفلک ۲=سرسیر
     public int rideKind = 0;
     private float rideTimer = 0f;
@@ -46,18 +49,32 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private Npc nearNpc = null;
     private Vehicle boardable = null;
 
-    // فیلم سینما
+    // قطار مسافری + ایستگاه‌ها
+    private int activeTrainLoop = 0;
+    private int nearStationIdx = -1;
+    private int nearBusStopIdx = -1;
+    // اتوبوس بین‌شهری
+    public static final int BUS_FARE = 150;
+
+    // فیلم سینما (اگر اینترنت نباشد برفک نشان داده می‌شود)
     public boolean moviePlaying = false;
+    public boolean movieOffline = false;
     private float movieTimer = 0f;
     private int movieIndex = 0;
     private float movieTime = 0f;
 
+    // صدای حیوانات باغ‌وحش
+    private float zooSoundCd = 0f;
+    private static final String[] ZOO_SOUNDS = {
+        "lion", "elephant", "monkey", "neigh", "birds",
+        "giraffe", "bear", "tiger", "birds", "camel"
+    };
+
     // ذخیره خودکار
     private float autoSaveTimer = 0f;
 
-    // قطار مسافری
+    // قطار مسافری (برای همگام‌سازی ذخیره)
     private Vehicle trainRideVehicle = null;
-    private float trainRideStart = 0f;
 
     private final Paint bgPaint = new Paint();
     private final Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -85,6 +102,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             // ساخت شخصیت: اول از ذخیره، بعد از تنظیمات
             JSONObject save = SaveManager.load(appContext);
             boolean loaded = false;
+            for (int i = 0; i < outfitOwned.length; i++) outfitOwned[i] = (i == 0 || i == 5);
             if (save != null) {
                 try {
                     player.readJson(save);
@@ -92,6 +110,13 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                     heliOwned = save.optBoolean("heliOwned", false);
                     trainOwned = save.optBoolean("trainOwned", false);
                     missions.setCurrent(save.optInt("mission", 0));
+                    // بازیابی لباس‌های خریده‌شده
+                    org.json.JSONArray owned = save.optJSONArray("outfits");
+                    if (owned != null) {
+                        for (int i = 0; i < owned.length() && i < outfitOwned.length; i++) {
+                            if (owned.optBoolean(i, false)) outfitOwned[i] = true;
+                        }
+                    }
                     // بازیابی ماشین‌های خریده‌شده
                     org.json.JSONArray cars = save.optJSONArray("cars");
                     if (cars != null) {
@@ -117,6 +142,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                         context.getSharedPreferences("shahrshadi_prefs", Context.MODE_PRIVATE);
                 player.name = prefs.getString("charName", "قهرمان");
                 player.gender = prefs.getInt("charGender", 0);
+                player.outfit = player.gender == 1 ? 5 : 0;
                 player.x = world.spawnX;
                 player.y = world.spawnY;
             }
@@ -179,7 +205,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     /**
-     * نشانگرهای ثابت مینی‌مپ — همه مکان‌های مهم شهر
+     * نشانگرهای ثابت مینی‌مپ — همه مکان‌های مهم هر سه شهر
      */
     private void addMinimapMarkers() {
         MiniMap mm = ui.mm;
@@ -197,8 +223,21 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         addMarkerFor(mm, Building.AMUSEMENT, 0xFFF06292);
         addMarkerFor(mm, Building.DOCK, 0xFF0277BD);
         addMarkerFor(mm, Building.BAKERY, 0xFFC7A008);
-        addMarkerFor(mm, Building.TRAIN_STATION, 0xFF5D4037);
+        addMarkerFor(mm, Building.CLOTHES, 0xFFAD1457);
+        addMarkerFor(mm, Building.AIRPORT, 0xFF0277BD);
         addMarkerFor(mm, Building.HELIPORT, 0xFF00BCD4);
+        // همه ایستگاه‌های قطار (۳ ایستگاه)
+        for (int i = 0; i < world.buildings.size(); i++) {
+            Building b = world.buildings.get(i);
+            if (b.type == Building.TRAIN_STATION) {
+                mm.addMarker(b.doorX, b.doorY, 0xFF5D4037, 0);
+            }
+        }
+        // ایستگاه‌های اتوبوس
+        for (int i = 0; i < world.busStops.size(); i++) {
+            float[] bs = world.busStops.get(i);
+            mm.addMarker(bs[0], bs[1], 0xFF1E88E5, 0);
+        }
         // پارک و چرخ‌وفلک
         if (world.fountainX > 0f) mm.addMarker(world.fountainX, world.fountainY, 0xFF1E88E5, 0);
         if (world.wheelX > 0f) mm.addMarker(world.wheelX, world.wheelY, 0xFFF06292, 0);
@@ -257,6 +296,23 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 }
             }
 
+            // 🔊 صدای حیوانات باغ‌وحش (نزدیک قفس)
+            if (world.interior != null && world.interior.floorType.equals("zoo")) {
+                zooSoundCd -= dt;
+                if (zooSoundCd <= 0f) {
+                    for (int i = 0; i < world.interior.animalPos.size(); i++) {
+                        float[] ap = world.interior.animalPos.get(i);
+                        if (G.dist(player.x, player.y, ap[0], ap[1]) < 230f) {
+                            int t = world.interior.animalTypes.get(i);
+                            t = Math.max(0, Math.min(t, ZOO_SOUNDS.length - 1));
+                            SoundManager.play(ZOO_SOUNDS[t]);
+                            zooSoundCd = 3.4f + (float) Math.random() * 2.2f;
+                            break;
+                        }
+                    }
+                }
+            }
+
             // ذخیره خودکار هر ۲۰ ثانیه
             autoSaveTimer += dt;
             if (autoSaveTimer > 20f) {
@@ -282,15 +338,34 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             // حیوان نزدیک؟
             for (int i = 0; i < world.interior.animalPos.size(); i++) {
                 float[] ap = world.interior.animalPos.get(i);
-                if (G.dist(player.x, player.y, ap[0], ap[1] + 20f) < 150f) {
+                if (G.dist(player.x, player.y, ap[0], ap[1] + 20f) < 230f) {
                     al = "نگاه کن";
                     break;
                 }
             }
         }
-        if (al == null && !player.ridingTrain && player.driving != null
-                && player.driving.type == Vehicle.CAR_TRAIN) {
+        // ✅ دکمه پیاده شدن برای همه وسیله‌ها (ماشین، قایق، هلی، اسب، قطار)
+        if (al == null && player.driving != null) {
             al = "پیاده شو";
+        }
+        if (al == null && player.ridingTrain) {
+            al = "پیاده شو";
+        }
+        if (al == null && world.interior == null && !player.ridingTrain
+                && player.driving == null && !player.swimming) {
+            // 🚂 ایستگاه قطار نزدیک؟
+            nearStationIdx = nearestTrainStation(240f);
+            if (nearStationIdx >= 0) {
+                al = "سوار قطار";
+            }
+            // 🚌 ایستگاه اتوبوس نزدیک؟
+            if (al == null) {
+                nearBusStopIdx = nearestBusStop(150f);
+                if (nearBusStopIdx >= 0) al = "اتوبوس";
+            }
+        } else if (player.driving != null || player.ridingTrain || player.swimming) {
+            nearStationIdx = -1;
+            nearBusStopIdx = -1;
         }
         if (al == null && world.interior == null && !player.ridingTrain) {
             // 🎣 ماهیگیری کنار اسکله
@@ -300,7 +375,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             }
             // 💬 گفتگو با شهروند نزدیک
             nearNpc = findNearNpc(140f);
-            // 🚗 سوار شدن به وسیله‌ی خودت (ماشین/موتور/قایق/هلی پارک‌شده)
+            // 🚗 سوار شدن به وسیله‌ی خودت (ماشین/موتور/قایق/هلی پارک‌شده یا اسب در حال چرا)
             boardable = findBoardable(130f);
             if (al == null && nearNpc != null) al = "صحبت کن";
             if (al == null && boardable != null) al = "سوار شو";
@@ -309,6 +384,34 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             boardable = null;
         }
         ui.actionLabel = al;
+    }
+
+    private int nearestTrainStation(float maxDist) {
+        int best = -1;
+        float bestD = maxDist;
+        for (int i = 0; i < world.trainStations.size(); i++) {
+            float[] st = world.trainStations.get(i);
+            float d = G.dist(player.x, player.y, st[0], st[1]);
+            if (d < bestD) {
+                bestD = d;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private int nearestBusStop(float maxDist) {
+        int best = -1;
+        float bestD = maxDist;
+        for (int i = 0; i < world.busStops.size(); i++) {
+            float[] bs = world.busStops.get(i);
+            float d = G.dist(player.x, player.y, bs[0], bs[1]);
+            if (d < bestD) {
+                bestD = d;
+                best = i;
+            }
+        }
+        return best;
     }
 
     private Npc findNearNpc(float maxDist) {
@@ -330,7 +433,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         float bestD = maxDist;
         for (int i = 0; i < world.vehicles.size(); i++) {
             Vehicle v = world.vehicles.get(i);
-            if (v.mode != Vehicle.MODE_PARKED || !v.owned || !v.isActive()) continue;
+            boolean ok = (v.mode == Vehicle.MODE_PARKED ||
+                    (v.type == Vehicle.CAR_HORSE && v.mode == Vehicle.MODE_GRAZE))
+                    && v.owned && v.isActive();
+            if (!ok) continue;
             if (v.type == Vehicle.CAR_TRAIN) continue;
             float d = G.dist(player.x, player.y, v.x, v.y);
             if (d < bestD) {
@@ -348,10 +454,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             // اهرم بالا = گاز، پایین = ترمز/عقب
             float throttle = -joystick.getDy();
             v.speed = G.clamp(v.speed + throttle * 220f * dt, -60f, 170f);
-            if (v.mode == Vehicle.MODE_PLAYER && world.railPath != null) {
+            if (v.mode == Vehicle.MODE_PLAYER && world.rail(v.railIndex) != null) {
                 v.trackPos += v.speed * dt;
                 float[] pos = new float[3];
-                world.railPath.posAt(v.trackPos, pos);
+                world.rail(v.railIndex).posAt(v.trackPos, pos);
                 v.x = pos[0];
                 v.y = pos[1];
                 v.angle = pos[2];
@@ -361,6 +467,32 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             SoundManager.startEngine();
             SoundManager.setEngineChop(false);
             SoundManager.setEngineIntensity(0.25f + Math.abs(v.speed) / 400f);
+            return;
+        }
+
+        if (v.type == Vehicle.CAR_HORSE) {
+            // 🐴 سواری اسب — همه‌جا می‌رود (به جز آب و ساختمان)
+            float steer = joystick.getDx();
+            float gas = -joystick.getDy();
+            v.speed = G.clamp(v.speed + gas * 240f * dt - v.speed * 0.9f * dt, 0f, 150f);
+            v.angle += steer * 2.0f * dt * (v.speed > 5f ? 1f : 0f);
+            float nx = v.x + (float) Math.cos(v.angle) * v.speed * dt;
+            float ny = v.y + (float) Math.sin(v.angle) * v.speed * dt;
+            if (!world.isBlocked(nx, ny, 20f)) {
+                v.x = G.clamp(nx, 100f, G.WORLD_W - 100f);
+                v.y = G.clamp(ny, 100f, G.WORLD_H - 100f);
+            } else {
+                v.speed = 0f;
+            }
+            player.x = v.x;
+            player.y = v.y;
+            float ca = (float) Math.cos(v.angle), sa = (float) Math.sin(v.angle);
+            if (Math.abs(ca) > Math.abs(sa)) player.dir = ca > 0 ? 3 : 1;
+            else player.dir = sa > 0 ? 0 : 2;
+            v.anim += dt;
+            SoundManager.startEngine();
+            SoundManager.setEngineChop(false);
+            SoundManager.setEngineIntensity(v.speed / 300f);
             return;
         }
 
@@ -433,12 +565,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
      * سفر مسافری با قطار — یک دور کامل، پیاده شدن در ایستگاه
      */
     private void rideTrain(float dt) {
-        Vehicle train = findTrain();
-        if (train == null || world.railPath == null) {
+        Vehicle train = findTrain(activeTrainLoop);
+        RailPath path = world.rail(activeTrainLoop);
+        if (train == null || path == null) {
             player.ridingTrain = false;
             return;
         }
-        trainRideVehicle = train;
         // بازیکن در واگن اول می‌نشیند
         float[] seat = new float[2];
         train.pointAt(world, 1, seat);
@@ -446,9 +578,17 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         player.y = seat[1];
 
         float traveled = train.trackPos - player.trainBoardDist;
-        while (traveled < 0) traveled += world.railPath.perimeter;
-        boolean lapDone = traveled >= world.railPath.perimeter - 80f;
-        boolean nearStation = G.dist(train.x, train.y, world.trainStationX, world.trainStationY) < 220f;
+        while (traveled < 0) traveled += path.perimeter;
+        boolean lapDone = traveled >= path.perimeter - 80f;
+        boolean nearStation = false;
+        for (int i = 0; i < world.trainStations.size(); i++) {
+            float[] st = world.trainStations.get(i);
+            if ((int) st[2] != activeTrainLoop) continue;
+            if (G.dist(train.x, train.y, st[0], st[1]) < 260f) {
+                nearStation = true;
+                break;
+            }
+        }
 
         if (lapDone && nearStation) {
             dismountTrain();
@@ -457,9 +597,28 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     private void dismountTrain() {
         player.ridingTrain = false;
-        trainRideVehicle = null;
-        player.x = world.trainStationX;
-        player.y = world.trainStationY + 90f;
+        // پیاده شدن کنار نزدیک‌ترین ایستگاه همین خط
+        float[] best = null;
+        float bestD = Float.MAX_VALUE;
+        for (int i = 0; i < world.trainStations.size(); i++) {
+            float[] st = world.trainStations.get(i);
+            if ((int) st[2] != activeTrainLoop) continue;
+            float d = G.dist(player.x, player.y, st[0], st[1]);
+            if (d < bestD) {
+                bestD = d;
+                best = st;
+            }
+        }
+        if (best != null) {
+            float[] spot = world.findWalkableNear(best[0], best[1]);
+            if (spot != null) {
+                player.x = spot[0];
+                player.y = spot[1];
+            } else {
+                player.x = best[0];
+                player.y = best[1] + 90f;
+            }
+        }
         missions.completeByTitle("قطار");
         SoundManager.play("success");
         ui.toast("به ایستگاه رسیدی! سفر خوبی بود 🚂");
@@ -473,11 +632,26 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         if (v.type == Vehicle.CAR_TRAIN) {
             // پیاده شدن کنار ریل (ترجیحاً ایستگاه)
-            if (G.dist(v.x, v.y, world.trainStationX, world.trainStationY) < 300f) {
-                player.x = world.trainStationX;
-                player.y = world.trainStationY + 90f;
-                ui.toast("به ایستگاه خوش آمدی! 🚂");
-            } else {
+            boolean atStation = false;
+            for (int i = 0; i < world.trainStations.size(); i++) {
+                float[] st = world.trainStations.get(i);
+                if ((int) st[2] != v.railIndex) continue;
+                if (G.dist(v.x, v.y, st[0], st[1]) < 300f) {
+                    player.x = st[0];
+                    player.y = st[1] + 90f;
+                    if (world.isBlocked(player.x, player.y, 16f)) {
+                        float[] spot = world.findWalkableNear(st[0], st[1]);
+                        if (spot != null) {
+                            player.x = spot[0];
+                            player.y = spot[1];
+                        }
+                    }
+                    ui.toast("به ایستگاه خوش آمدی! 🚂");
+                    atStation = true;
+                    break;
+                }
+            }
+            if (!atStation) {
                 player.x = v.x;
                 player.y = v.y + 80f;
                 if (world.isBlocked(player.x, player.y, 16f)) {
@@ -485,25 +659,40 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 }
                 ui.toast("پیاده شدی!");
             }
-            v.speed = 95f;
+            v.speed = 150f;
             v.mode = Vehicle.MODE_RAIL;   // قطار دوباره خودش دور می‌زند
             return;
         }
 
-        // ماشین/موتور/هلی/قایق
+        // ماشین/موتور/هلی/قایق/اسب
         if (v.type == Vehicle.CAR_BOAT) {
-            // پیاده شدن از قایق — باید نزدیک ساحل باشی
+            // ✅ پیاده شدن از قایق — حتی وسط دریاچه (شنا می‌کنی!)
             float[] spot = world.findWalkableNear(v.x, v.y);
-            if (spot == null) {
-                ui.toast("باید نزدیک ساحل پیاده شوی!");
-                return;
-            }
-            player.x = spot[0];
-            player.y = spot[1];
             v.mode = Vehicle.MODE_PARKED;
             v.speed = 0f;
             SoundManager.play("splash");
-            ui.toast("از قایق پیاده شدی ⛵");
+            if (spot != null) {
+                player.x = spot[0];
+                player.y = spot[1];
+                player.swimming = false;
+                ui.toast("از قایق پیاده شدی ⛵");
+            } else {
+                player.x = v.x;
+                player.y = v.y + 40f;
+                player.swimming = true;
+                ui.toast("🏊 وسط دریاچه‌ای! به ساحل شنا کن — یا دوباره سوار قایق شو");
+            }
+            return;
+        }
+        if (v.type == Vehicle.CAR_HORSE) {
+            player.x = v.x + 60f;
+            player.y = v.y + 10f;
+            if (world.isBlocked(player.x, player.y, 16f)) {
+                player.x = v.x - 60f;
+            }
+            v.mode = Vehicle.MODE_GRAZE;   // اسب دوباره می‌چرد
+            v.resetGraze();
+            ui.toast("از اسب پیاده شدی! 🐴");
             return;
         }
         player.x = v.x + 60f;
@@ -522,10 +711,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         }
     }
 
-    private Vehicle findTrain() {
+    private Vehicle findTrain(int loopIndex) {
         for (int i = 0; i < world.vehicles.size(); i++) {
             Vehicle v = world.vehicles.get(i);
-            if (v.type == Vehicle.CAR_TRAIN) return v;
+            if (v.type == Vehicle.CAR_TRAIN && v.railIndex == loopIndex) return v;
         }
         return null;
     }
@@ -537,12 +726,33 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         movieTime = 0f;
         movieTimer = 45f;
         moviePlaying = true;
-        SoundManager.play("success");
-        ui.toast("🎬 فیلم شروع شد — از تماشای آن لذت ببر!");
+        movieOffline = !hasInternet();
+        if (movieOffline) {
+            ui.toast("📡 اینترنت متصل نیست — پخش با برفک!");
+        } else {
+            SoundManager.play("success");
+            ui.toast("🎬 فیلم شروع شد — از تماشای آن لذت ببر!");
+        }
     }
 
     public void stopMovie() {
         moviePlaying = false;
+        movieOffline = false;
+    }
+
+    /**
+     * آیا دستگاه به اینترنت وصل است؟ (برای سینما)
+     */
+    public boolean hasInternet() {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager)
+                    appContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return false;
+            android.net.NetworkInfo ni = cm.getActiveNetworkInfo();
+            return ni != null && ni.isConnected();
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     // ================= دکمه اقدام =================
@@ -567,7 +777,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         if (world.interior != null && world.interior.floorType.equals("zoo")) {
             for (int i = 0; i < world.interior.animalPos.size(); i++) {
                 float[] ap = world.interior.animalPos.get(i);
-                if (G.dist(player.x, player.y, ap[0], ap[1] + 20f) < 150f) {
+                if (G.dist(player.x, player.y, ap[0], ap[1] + 20f) < 230f) {
                     ui.openInfo("درباره این حیوان", Dialogues.animalInfo(world.interior.animalTypes.get(i)));
                     return;
                 }
@@ -576,6 +786,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         if (world.interior != null) return;
 
+        // 🚂 سوار قطار مسافری از ایستگاه نزدیک
+        if (nearStationIdx >= 0) {
+            boardTrainAt(nearStationIdx);
+            return;
+        }
+        // 🚌 سفر با اتوبوس بین‌شهری
+        if (nearBusStopIdx >= 0) {
+            openBusMenu(nearBusStopIdx);
+            return;
+        }
         // 🎣 ماهیگیری کنار اسکله
         if (ui.nearBuilding != null && ui.nearBuilding.type == Building.DOCK) {
             doFishing();
@@ -586,19 +806,75 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             talkToNpc(nearNpc);
             return;
         }
-        // 🚗 سوار شدن به وسیله‌ی خودت
+        // 🚗 سوار شدن به وسیله‌ی خودت (ماشین/قایق/اسب/هلی)
         if (boardable != null) {
             player.driving = boardable;
             boardable.mode = Vehicle.MODE_PLAYER;
             player.x = boardable.x;
             player.y = boardable.y;
-            SoundManager.play(boardable.type == Vehicle.CAR_BOAT ? "splash" : "door");
+            player.swimming = false;
             if (boardable.type == Vehicle.CAR_BOAT) {
+                SoundManager.play("splash");
                 ui.toast("سوار قایق شدی! ⛵ با اهرم دریانوردی کن");
+            } else if (boardable.type == Vehicle.CAR_HORSE) {
+                SoundManager.play("neigh");
+                ui.toast("سوار اسب شدی! 🐴 تندتر از پیاده راه می‌ری");
             } else {
+                SoundManager.play("door");
                 ui.toast("سوار شدی! با اهرم بران — دکمه اقدام = پیاده شدن");
             }
         }
+    }
+
+    /**
+     * سوار شدن به قطار مسافری از روی سکوی ایستگاه (بلیط ۲۰۰ تومان)
+     */
+    private void boardTrainAt(int stationIdx) {
+        float[] st = world.trainStations.get(stationIdx);
+        int loop = (int) st[2];
+        Vehicle train = findTrain(loop);
+        if (train == null) {
+            ui.toast("قطار پیدا نشد!");
+            return;
+        }
+        if (G.dist(train.x, train.y, st[0], st[1]) > 650f) {
+            ui.toast("قطار باید نزدیک ایستگاه باشد — کمی صبر کن! 🚂");
+            return;
+        }
+        if (!shop.pay(200)) return;
+        player.ridingTrain = true;
+        activeTrainLoop = loop;
+        player.trainBoardDist = train.trackPos;
+        player.driving = null;
+        player.swimming = false;
+        SoundManager.play("success");
+        ui.toast("سفر شروع شد! 🚂 از پنجره شهرها را تماشا کن");
+    }
+
+    /**
+     * 🚌 سفر با اتوبوس بین‌شهری — از ایستگاه نزدیک به ایستگاه مقصد
+     */
+    private void openBusMenu(int fromIdx) {
+        UIManager.Menu m = new UIManager.Menu("🚌 " + world.busStopNames.get(fromIdx));
+        for (int i = 0; i < world.busStops.size(); i++) {
+            if (i == fromIdx) continue;
+            final int to = i;
+            m.items.add(new UIManager.MenuItem("به " + world.busStopNames.get(i),
+                    "بلیط: " + UIManager.faMoney(BUS_FARE) + " تومان — مستقیم و سریع!", () -> {
+                        if (!shop.pay(BUS_FARE)) return;
+                        float[] dst = world.busStops.get(to);
+                        player.x = dst[0];
+                        player.y = dst[1];
+                        player.driving = null;
+                        player.ridingTrain = false;
+                        player.swimming = false;
+                        ui.closeMenu();
+                        SoundManager.play("whoosh");
+                        ui.toast("🚌 سفر با اتوبوس به " + world.busStopNames.get(to) + " — به سلامت رسیدی!");
+                        missions.completeByTitle("اتوبوس");
+                    }));
+        }
+        ui.openMenu(m);
     }
 
     /**
@@ -700,12 +976,18 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             o.put("heliOwned", heliOwned);
             o.put("trainOwned", trainOwned);
             o.put("mission", missions.currentIndex());
+            // لباس‌های خریده‌شده
+            org.json.JSONArray outfits = new org.json.JSONArray();
+            for (int i = 0; i < outfitOwned.length; i++) {
+                outfits.put(outfitOwned[i]);
+            }
+            o.put("outfits", outfits);
             // ماشین‌های خریده‌شده بازیکن (موقعیت پارک هم ذخیره می‌شود)
             org.json.JSONArray cars = new org.json.JSONArray();
             for (int i = 0; i < world.vehicles.size(); i++) {
                 Vehicle v = world.vehicles.get(i);
                 if (v.owned && v.type != Vehicle.CAR_TRAIN && v.type != Vehicle.CAR_BOAT
-                        && v.type != Vehicle.CAR_HELICOPTER) {
+                        && v.type != Vehicle.CAR_HELICOPTER && v.type != Vehicle.CAR_HORSE) {
                     JSONObject cv = new JSONObject();
                     cv.put("t", v.type);
                     cv.put("x", v.x);
@@ -784,6 +1066,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 SoundManager.play("click");
                 onAction();
                 break;
+            case "exitint":
+                // ✅ خروج از ساختمان با دکمه — از هر جای محیط داخلی
+                SoundManager.play("click");
+                shop.exitInteriorNow();
+                break;
             case "enter":
                 if (ui.nearBuilding != null) {
                     SoundManager.play("click");
@@ -835,8 +1122,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 world.draw(c, sprites, camera.x, camera.y,
                         viewW / camera.zoom, viewH / camera.zoom);
 
-                // بازیکن (اگر داخل وسیله‌ای که می‌راند روی وسیله رسم نشود)
-                if (player.driving == null) {
+                // بازیکن (اگر داخل وسیله‌ای که می‌راند روی وسیله رسم نشود — به جز اسب: سوار بر اسب دیده می‌شود)
+                if (player.driving == null || player.driving.type == Vehicle.CAR_HORSE) {
                     drawPlayer(c);
                 }
 
@@ -874,14 +1161,18 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 world.drawInterior(c, sprites);
                 drawPlayer(c);
 
-                // پرده سینما: فیلم تمام‌صفحه
+                // پرده سینما: فیلم تمام‌صفحه (یا برفک اگر اینترنت نباشد)
                 if (world.interior.floorType.equals("cinema") && moviePlaying) {
                     for (int i = 0; i < world.interior.furniture.size(); i++) {
                         int[] st = world.interior.furnitureStyle.get(i);
                         if (st[1] == 9) {
                             float[] f = world.interior.furniture.get(i);
                             movieScreen.set(f[0] + 6f, f[1] + 6f, f[0] + f[2] - 6f, f[1] + f[3] - 6f);
-                            sprites.drawMovie(c, movieScreen, movieIndex, movieTime);
+                            if (movieOffline) {
+                                sprites.drawMovieStatic(c, movieScreen, movieTime);
+                            } else {
+                                sprites.drawMovie(c, movieScreen, movieIndex, movieTime);
+                            }
                         }
                     }
                 }
@@ -894,10 +1185,19 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
             // عنوان سینما حین فیلم
             if (moviePlaying && world.interior != null && world.interior.floorType.equals("cinema")) {
-                tp.setColor(0xFFFFFFFF);
                 tp.setTextAlign(Paint.Align.CENTER);
-                tp.setTextSize(30f);
-                c.drawText("سینما ستاره در حال پخش...", viewW / 2f, 50f, tp);
+                if (movieOffline) {
+                    tp.setColor(0xFFFF5252);
+                    tp.setTextSize(38f);
+                    c.drawText("📡 اینترنت متصل نیست", viewW / 2f, 60f, tp);
+                    tp.setColor(0xFFFFFFFF);
+                    tp.setTextSize(26f);
+                    c.drawText("برای تماشای فیلم اینترنت را روشن کن", viewW / 2f, 100f, tp);
+                } else {
+                    tp.setColor(0xFFFFFFFF);
+                    tp.setTextSize(30f);
+                    c.drawText("سینما ستاره در حال پخش...", viewW / 2f, 55f, tp);
+                }
             }
 
             // رابط کاربری
@@ -908,29 +1208,28 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     private void drawPlayer(Canvas c) {
-        int[] outfit = player.gender == 1 ? SpriteLib.OUTFITS[5] : SpriteLib.OUTFITS[0];
+        int oi = Math.max(0, Math.min(player.outfit, SpriteLib.OUTFITS.length - 1));
+        int[] outfit = SpriteLib.OUTFITS[oi];
         int carrying = -1;
         if (jobs.jobName() != null && jobs.activeJob == JobSystem.JOB_WAITER && jobs.actionLabel() != null) {
             carrying = 1;
         }
-        sprites.drawPerson(c, player.x, player.y, player.dir, player.anim,
+        // 🐴 سوار بر اسب — کمی بالاتر رسم می‌شود
+        float py = player.y;
+        if (player.driving != null && player.driving.type == Vehicle.CAR_HORSE) {
+            py = player.y - 26f;
+        }
+        sprites.drawPerson(c, player.x, py, player.dir, player.anim,
                 outfit[0], outfit[1], G.COL_SKIN, 0xFF3E2723,
                 player.gender == 1 ? 2 : 0, carrying, true, player.gender);
-    }
 
-    // نشانه‌گذاری برای ذخیره در قطار مسافری
-    public float trainBoardDist() {
-        return player.trainBoardDist;
-    }
-
-    /**
-     * قطار شهر (برای مینی‌مپ متحرک)
-     */
-    public Vehicle trainVehicle() {
-        for (int i = 0; i < world.vehicles.size(); i++) {
-            Vehicle v = world.vehicles.get(i);
-            if (v.type == Vehicle.CAR_TRAIN) return v;
+        // 🏊 حالت شنا — آب روی نیمه پایین بدن
+        if (player.swimming && player.driving == null) {
+            sprites.p.setColor(0xB364B5F6);
+            c.drawOval(player.x - 22f, player.y - 6f, player.x + 22f, player.y + 24f, sprites.p);
+            sprites.p.setColor(0x77FFFFFF);
+            c.drawOval(player.x - 26f, player.y + 10f, player.x - 12f, player.y + 15f, sprites.p);
+            c.drawOval(player.x + 12f, player.y + 6f, player.x + 26f, player.y + 11f, sprites.p);
         }
-        return null;
     }
 }

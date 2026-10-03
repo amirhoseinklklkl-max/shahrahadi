@@ -7,16 +7,17 @@ public final class G {
 
     private G() {}
 
-    // اندازه زمین بازی (شهر خیلی بزرگ + روستا + دریاچه)
+    // اندازه زمین بازی (شهر خیلی بزرگ + دو شهر دیگر + روستاها + فرودگاه + دریاچه)
     public static final float TILE = 64f;
-    public static final int MAP_W = 168;   // تعداد تایل افقی
-    public static final int MAP_H = 128;   // تعداد تایل عمودی
+    public static final int MAP_W = 260;   // تعداد تایل افقی
+    public static final int MAP_H = 176;   // تعداد تایل عمودی
     public static final float WORLD_W = MAP_W * TILE;
     public static final float WORLD_H = MAP_H * TILE;
 
     // سرعت‌ها (پیکسل بر ثانیه)
     public static final float WALK_SPEED = 215f;
     public static final float WALK_SPEED_TIRED = 110f;
+    public static final float SWIM_SPEED = 92f;    // شنا کردن در دریاچه
     public static final float NPC_SPEED = 90f;
 
     // چرخه روز و شب: هر ثانیه واقعی = چند دقیقه بازی

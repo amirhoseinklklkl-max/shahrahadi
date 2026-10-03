@@ -70,6 +70,35 @@ object SoundManager {
         cache["whoosh"] = slide(600.0, 150.0, 0.3, 0.3)
         cache["splash"] = slide(900.0, 180.0, 0.28, 0.45)
         cache["fish"] = concat(tone(1046.0, 0.07, 0.5), tone(784.0, 0.14, 0.5))
+
+        // 🚓 آژیر پلیس
+        cache["siren"] = concat(slide(650.0, 900.0, 0.40, 0.26), slide(900.0, 650.0, 0.40, 0.26))
+        // 🐴 شیهه اسب / گورخر
+        cache["neigh"] = concat(slide(700.0, 240.0, 0.35, 0.45), tone(240.0, 0.15, 0.28))
+        // 🦁 غرش شیر
+        cache["lion"] = growl(80.0, 0.9)
+        // 🐯 غرش ببر
+        cache["tiger"] = growl(115.0, 0.8)
+        // 🐻 غرش خرس
+        cache["bear"] = growl(58.0, 1.0)
+        // 🐑 فیل (شیپور)
+        cache["elephant"] = concat(slide(430.0, 160.0, 0.55, 0.45), slide(160.0, 300.0, 0.25, 0.32))
+        // 🐒 میمون
+        cache["monkey"] = concat(
+            slide(850.0, 1500.0, 0.10, 0.38), slide(950.0, 1600.0, 0.10, 0.38),
+            slide(800.0, 1400.0, 0.12, 0.38)
+        )
+        // 🐦 پرنده / پنگوئن / پاندا
+        cache["birds"] = concat(
+            slide(1900.0, 2500.0, 0.07, 0.30), slide(2100.0, 2700.0, 0.07, 0.30),
+            slide(1800.0, 2400.0, 0.08, 0.30)
+        )
+        // 🦒 زرافه
+        cache["giraffe"] = slide(280.0, 360.0, 0.6, 0.20)
+        // 🐪 شتر
+        cache["camel"] = concat(slide(320.0, 180.0, 0.4, 0.42), slide(200.0, 260.0, 0.2, 0.28))
+        // ✈ موتور جت (برخاست/فرود)
+        cache["jet"] = slide(110.0, 430.0, 1.3, 0.20)
     }
 
     // ---------------- پخش افکت ----------------
@@ -393,6 +422,23 @@ object SoundManager {
             val thump = sin(2 * PI * (70.0 - 40.0 * p) * i / SR) * 0.7
             last = last * 0.7 + (noise * 0.5 + thump) * 0.3
             out[i] = (last * env * 0.85 * Short.MAX_VALUE).toInt().toShort()
+        }
+        return out
+    }
+
+    /** غرش حیوانات — اره‌ای بم با لرزش و نویز */
+    private fun growl(freq: Double, dur: Double): ShortArray {
+        val n = (SR * dur).toInt()
+        val out = ShortArray(n)
+        var phase = 0.0
+        for (i in 0 until n) {
+            val t = i.toDouble() / SR
+            phase += 2 * PI * (freq + 12.0 * sin(2 * PI * 9.0 * t)) / SR
+            val cyc = phase / (2 * PI)
+            val saw = 2.0 * (cyc - kotlin.math.floor(cyc)) - 1.0
+            val noise = (if ((i * 2654435761L + 1013904223L) % 2 == 0L) 1.0 else -1.0) * 0.16
+            val env = min(1.0, i / (SR * 0.08)) * (1.0 - i.toDouble() / n * 0.35)
+            out[i] = ((saw * 0.55 + noise) * env * 0.5 * Short.MAX_VALUE).toInt().toShort()
         }
         return out
     }

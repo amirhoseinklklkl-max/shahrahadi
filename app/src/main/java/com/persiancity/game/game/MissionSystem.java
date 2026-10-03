@@ -52,6 +52,8 @@ public class MissionSystem {
         missions.add(new Mission("شهربازی!", "سوار چرخ‌وفلک بزرگ شو", Building.AMUSEMENT, 250));
         missions.add(new Mission("ماشین اولت", "از فروشگاه ماشین شادی یک ماشین بخر", Building.CARSHOP, 300));
         missions.add(new Mission("به روستا سفر کن", "نان تازه از نانوایی روستا بخر", Building.BAKERY, 200));
+        missions.add(new Mission("سفر با اتوبوس بین شهرها", "از ایستگاه اتوبوس به شهر ستاره یا شهر گلاب برو", -1, 250));
+        missions.add(new Mission("تماشای فرودگاه", "به فرودگاه شهر شادی برو و هواپیما را ببین", Building.AIRPORT, 200));
     }
 
     // ================= مأموریت محله‌ای (از NPC ها) =================

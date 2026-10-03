@@ -41,11 +41,13 @@ public class SpriteLib {
     public void drawPerson(Canvas c, float x, float y, int facing, float anim,
                            int shirt, int pants, int skin, int hairColor, int hairStyle,
                            int carrying, boolean isPlayer, int gender) {
-        float walk = (float) Math.sin(anim * 11f) * 6.5f;
         boolean walking = anim > 0.01f;
         boolean girl = gender == 1;
-        // ✅ بالا و پایین پریدن بدن هنگام راه رفتن (راه رفتن طبیعی‌تر)
+        float swing = walking ? (float) Math.sin(anim * 11f) * 6.5f : 0f;
+        // ✅ بالا و پایین پریدن بدن هنگام راه رفتن
         float bob = walking ? Math.abs((float) Math.sin(anim * 11f)) * 2.4f : 0f;
+        // جهت راه رفتن افقی است یا عمودی؟ (پاها در راستای حرکت جلو-عقب می‌روند)
+        boolean horiz = facing == 1 || facing == 3;
 
         // سایه
         p.setColor(0x33000000);
@@ -54,18 +56,30 @@ public class SpriteLib {
         c.save();
         c.translate(0f, -bob);
 
-        // پاها
+        // ✅ پاها — حرکت طبیعی در راستای راه رفتن
         p.setColor(pants);
         if (walking) {
-            c.drawRoundRect(x - 10, y + 2 + walk, x - 2, y + 28, 4, 4, p);
-            c.drawRoundRect(x + 2, y + 2 - walk, x + 10, y + 28, 4, 4, p);
+            if (horiz) {
+                // قدم در راستای چپ/راست: پاها جلو-عقب
+                c.drawRoundRect(x - 10 + swing, y + 2, x - 2 + swing, y + 28, 4, 4, p);
+                c.drawRoundRect(x + 2 - swing, y + 2, x + 10 - swing, y + 28, 4, 4, p);
+            } else {
+                c.drawRoundRect(x - 10, y + 2 + swing, x - 2, y + 28, 4, 4, p);
+                c.drawRoundRect(x + 2, y + 2 - swing, x + 10, y + 28, 4, 4, p);
+            }
         } else {
             c.drawRoundRect(x - 9, y + 2, x - 1, y + 28, 4, 4, p);
             c.drawRoundRect(x + 1, y + 2, x + 9, y + 28, 4, 4, p);
         }
+        // کفش‌ها هم پای پاها
         p.setColor(0xFF4E342E);
-        c.drawRoundRect(x - 11, y + 24, x - 1, y + 30, 3, 3, p);
-        c.drawRoundRect(x + 1, y + 24, x + 11, y + 30, 3, 3, p);
+        if (walking && horiz) {
+            c.drawRoundRect(x - 11 + swing, y + 24, x - 1 + swing, y + 30, 3, 3, p);
+            c.drawRoundRect(x + 1 - swing, y + 24, x + 11 - swing, y + 30, 3, 3, p);
+        } else {
+            c.drawRoundRect(x - 11, y + 24, x - 1, y + 30, 3, 3, p);
+            c.drawRoundRect(x + 1, y + 24, x + 11, y + 30, 3, 3, p);
+        }
 
         // بدن — دختر: پیراهن مثلثی
         if (girl) {
@@ -77,11 +91,16 @@ public class SpriteLib {
             c.drawRoundRect(x - 11, y - 18, x + 11, y + 6, 8, 8, p);
         }
 
-        // دست‌ها
+        // ✅ دست‌ها — تاب در جهت مخالف پاها
         p.setColor(skin);
         if (walking) {
-            c.drawRoundRect(x - 16, y - 16 - walk, x - 10, y - 2 + walk * 0.5f, 4, 4, p);
-            c.drawRoundRect(x + 10, y - 16 + walk, x + 16, y - 2 - walk * 0.5f, 4, 4, p);
+            if (horiz) {
+                c.drawRoundRect(x - 16 + swing * 0.7f, y - 16, x - 10 + swing * 0.7f, y - 2, 4, 4, p);
+                c.drawRoundRect(x + 10 - swing * 0.7f, y - 16, x + 16 - swing * 0.7f, y - 2, 4, 4, p);
+            } else {
+                c.drawRoundRect(x - 16, y - 16 - swing, x - 10, y - 2 + swing * 0.5f, 4, 4, p);
+                c.drawRoundRect(x + 10, y - 16 + swing, x + 16, y - 2 - swing * 0.5f, 4, 4, p);
+            }
         } else {
             c.drawRoundRect(x - 16, y - 16, x - 10, y - 2, 4, 4, p);
             c.drawRoundRect(x + 10, y - 16, x + 16, y - 2, 4, 4, p);
@@ -103,20 +122,38 @@ public class SpriteLib {
         p.setColor(skin);
         c.drawCircle(x, y - 28, 13, p);
 
-        // موها
-        p.setColor(hairColor);
-        if (hairStyle == 2) {
-            // موی بلند دخترانه
-            c.drawCircle(x, y - 31, 13.5f, p);
-            c.drawRoundRect(x - 15, y - 32, x - 10, y - 12, 4, 4, p);
-            c.drawRoundRect(x + 10, y - 32, x + 15, y - 12, 4, 4, p);
-        } else if (hairStyle == 1) {
-            c.drawCircle(x, y - 32, 12, p);
-            c.drawCircle(x - 7, y - 38, 4, p);
-            c.drawCircle(x, y - 40, 4.5f, p);
-            c.drawCircle(x + 7, y - 38, 4, p);
+        // ✅ موها — فقط بالای سر؛ چهره از روبه‌رو کاملاً باز می‌ماند
+        // (رفع باگ: صورت از روبه‌رو مثل پشت سر پرِ مو دیده می‌شد)
+        boolean back = facing == 2;
+        if (hairStyle == 2 && girl) {
+            // موی بلند دخترانه: چتری کوتاه + دو طرف بلند (بدون پوشاندن صورت)
+            c.save();
+            c.clipRect(x - 15, y - 44, x + 15, y - 31.5f);
+            p.setColor(hairColor);
+            c.drawCircle(x, y - 30f, 13.4f, p);
+            c.restore();
+            p.setColor(hairColor);
+            c.drawRoundRect(x - 15, y - 34, x - 10, y - 10, 4, 4, p);
+            c.drawRoundRect(x + 10, y - 34, x + 15, y - 10, 4, 4, p);
+        } else if (back) {
+            // از پشت: کل سر مو
+            p.setColor(hairColor);
+            c.drawCircle(x, y - 30f, 13.2f, p);
+            p.setColor(0x33000000);
+            c.drawCircle(x, y - 30f, 13.2f, p);
         } else {
-            c.drawCircle(x, y - 32, 13, p);
+            // موی کوتاه: فقط نیمه بالای سر
+            c.save();
+            c.clipRect(x - 15, y - 44, x + 15, y - 31.5f);
+            p.setColor(hairColor);
+            c.drawCircle(x, y - 30f, 13.4f, p);
+            if (hairStyle == 1) {
+                // موی فرفری
+                c.drawCircle(x - 7, y - 38, 4, p);
+                c.drawCircle(x, y - 40, 4.5f, p);
+                c.drawCircle(x + 7, y - 38, 4, p);
+            }
+            c.restore();
         }
         if (girl) {
             // پاپیون
@@ -130,11 +167,7 @@ public class SpriteLib {
         p.setColor(0xFF3E2723);
         boolean right = facing == 3, left = facing == 1, up = facing == 2;
         if (up) {
-            // از پشت: فقط پشت سر
-            p.setColor(hairColor);
-            c.drawCircle(x, y - 28f, 12.5f, p);
-            p.setColor(0x33000000);
-            c.drawCircle(x, y - 28f, 12.5f, p);
+            // از پشت: فقط پشت سر (مو بالا کشیده شده)
         } else {
             float ox = right ? 3.5f : (left ? -3.5f : 0f);
             // چشم سفید + مردمک
@@ -375,7 +408,7 @@ public class SpriteLib {
         // برچسب شادی
         p.setColor(0xFFFFFFFF);
         p.setTextAlign(Paint.Align.CENTER);
-        p.setTextSize(15f);
+        p.setTextSize(18f);
         c.drawText("شادی", v.x, v.y - 34f, p);
     }
 
@@ -390,6 +423,10 @@ public class SpriteLib {
             drawBoat(c, v, minutes);
             return;
         }
+        if (v.type == Vehicle.CAR_HORSE) {
+            drawHorse(c, v.x, v.y, v.angle, v.anim, v.speed > 5f);
+            return;
+        }
         c.save();
         c.translate(v.x, v.y);
         c.rotate((float) Math.toDegrees(v.angle));
@@ -398,39 +435,68 @@ public class SpriteLib {
         boolean bus = v.type == Vehicle.CAR_BUS;
         boolean pickup = v.type == Vehicle.CAR_PICKUP;
         boolean sport = v.type == Vehicle.CAR_SPORT;
-        float L = motor ? 26f : (bus ? 56f : 46f);
-        float W = motor ? 13f : (bus ? 24f : 20f);
+        boolean police = v.type == Vehicle.CAR_POLICE;
+        // ✅ ماشین‌ها بزرگ‌تر شدند
+        float L = motor ? 33f : (bus ? 72f : 58f);
+        float W = motor ? 16f : (bus ? 30f : 25f);
 
         // سایه
         p.setColor(0x33000000);
-        c.drawRoundRect(-L, W - 4f, L, W + 6f, 8, 8, p);
+        c.drawRoundRect(-L, W - 4f, L, W + 7f, 9, 9, p);
+
+        // ✅ چرخ‌ها زیر بدنه — فقط کمی از بغل بیرون می‌زنند
+        // (رفع زشتی: قبلاً ۴ لاستیک روی بدنه کشیده می‌شد)
+        p.setColor(0xFF263238);
+        float wy = W + 1.5f;
+        float wx = L * 0.55f;
+        c.drawCircle(-wx, -wy, 8.5f, p);
+        c.drawCircle(wx, -wy, 8.5f, p);
+        c.drawCircle(-wx, wy, 8.5f, p);
+        c.drawCircle(wx, wy, 8.5f, p);
+        p.setColor(0xFF90A4AE);
+        c.drawCircle(-wx, -wy, 3.5f, p);
+        c.drawCircle(wx, -wy, 3.5f, p);
+        c.drawCircle(-wx, wy, 3.5f, p);
+        c.drawCircle(wx, wy, 3.5f, p);
 
         // ✅ بدنه با طراحی بهتر: سپر، کاپوت، سقف و شیشه‌ها
         p.setColor(v.color);
-        c.drawRoundRect(-L, -W, L, W, 9, 9, p);
+        c.drawRoundRect(-L, -W, L, W, 10, 10, p);
         p.setColor(0x26000000);
-        c.drawRoundRect(-L, W * 0.35f, L, W, 8, 8, p);   // سایه زیر بدنه
+        c.drawRoundRect(-L, W * 0.35f, L, W, 9, 9, p);   // سایه زیر بدنه
         // سپر جلو و عقب
         p.setColor(0xFF37474F);
-        c.drawRoundRect(L - 7f, -W + 3f, L + 3f, W - 3f, 4, 4, p);
-        c.drawRoundRect(-L - 3f, -W + 3f, -L + 5f, W - 3f, 4, 4, p);
+        c.drawRoundRect(L - 7f, -W + 3f, L + 4f, W - 3f, 4, 4, p);
+        c.drawRoundRect(-L - 4f, -W + 3f, -L + 5f, W - 3f, 4, 4, p);
 
         if (motor) {
             // موتور: بدن راننده + غربیلک
             p.setColor(0xFF5D4037);
             c.drawRoundRect(-L * 0.5f, -W * 0.7f, -L * 0.1f, W * 0.7f, 5, 5, p);
             p.setColor(0xFF263238);
-            c.drawCircle(L * 0.45f, 0f, 5.5f, p);
+            c.drawCircle(L * 0.45f, 0f, 6f, p);
             // چراغ جلو
             p.setColor(0xFFFFEE58);
-            c.drawCircle(L + 1f, -W * 0.4f, 3f, p);
-            c.drawCircle(L + 1f, W * 0.4f, 3f, p);
+            c.drawCircle(L + 1f, -W * 0.4f, 3.5f, p);
+            c.drawCircle(L + 1f, W * 0.4f, 3.5f, p);
+        } else if (police) {
+            // 🚓 پلیس: بدنه سفید + نوار تیره + چراغ‌گردان
+            p.setColor(0xFF37474F);
+            c.drawRoundRect(-L * 0.9f, -W + 3f, -L * 0.1f, W - 3f, 5, 5, p);
+            p.setColor(0xFFB3E5FC);
+            c.drawRoundRect(L * 0.1f, -W + 4f, L * 0.55f, W - 4f, 5, 5, p);
+            // چراغ‌گردان قرمز/آبی چشمک‌زن
+            boolean flash = ((int) (minutes * 4f) % 2) == 0;
+            p.setColor(flash ? 0xFFFF1744 : 0xFF2979FF);
+            c.drawRoundRect(-6f, -W - 7f, -1f, -W - 1f, 2, 2, p);
+            p.setColor(flash ? 0xFF2979FF : 0xFFFF1744);
+            c.drawRoundRect(1f, -W - 7f, 6f, -W - 1f, 2, 2, p);
         } else if (bus) {
             // اتوبوس: ردیف پنجره + در
             p.setColor(0xFFB3E5FC);
             for (int i = 0; i < 4; i++) {
-                float wx = -L * 0.85f + i * (L * 0.42f);
-                c.drawRoundRect(wx, -W + 4f, wx + L * 0.3f, -W * 0.1f, 3, 3, p);
+                float wx2 = -L * 0.85f + i * (L * 0.42f);
+                c.drawRoundRect(wx2, -W + 5f, wx2 + L * 0.3f, -W * 0.1f, 3, 3, p);
             }
             p.setColor(0xFFFFC107);
             c.drawRoundRect(L * 0.55f, -W * 0.6f, L * 0.8f, W * 0.6f, 3, 3, p);
@@ -451,50 +517,170 @@ public class SpriteLib {
             float cabL = sport ? L * 0.62f : L * 0.55f;
             c.drawRoundRect(-cabL, -W + 3f, cabL * 0.75f, W - 3f, 7, 7, p);
             p.setColor(0xFFB3E5FC);
-            c.drawRoundRect(-cabL + 4f, -W + 5.5f, -cabL * 0.15f, W - 5.5f, 4, 4, p);
-            c.drawRoundRect(cabL * 0.15f, -W + 5.5f, cabL * 0.65f, W - 5.5f, 4, 4, p);
-            // برآمدگی سقف
-            p.setColor(0xFFFFFFFF);
-            p.setStrokeWidth(2f);
-            c.drawLine(-cabL * 0.5f, -W + 3f, -cabL * 0.5f, -W + 1f, p);
-            p.setStrokeWidth(0.1f);
+            c.drawRoundRect(-cabL + 4f, -W + 6f, -cabL * 0.15f, W - 6f, 4, 4, p);
+            c.drawRoundRect(cabL * 0.15f, -W + 6f, cabL * 0.65f, W - 6f, 4, 4, p);
             if (sport) {
                 // باله عقب اسپرت
                 p.setColor(0xFF263238);
-                c.drawRoundRect(-L - 2f, -W - 7f, -L * 0.55f, -W - 3f, 3, 3, p);
+                c.drawRoundRect(-L - 2f, -W - 8f, -L * 0.55f, -W - 3f, 3, 3, p);
             }
         }
         // چراغ‌ها: زرد جلو، قرمز عقب
         if (!motor) {
             p.setColor(0xFFFFEE58);
-            c.drawCircle(L - 3f, -W * 0.55f, 3.5f, p);
-            c.drawCircle(L - 3f, W * 0.55f, 3.5f, p);
+            c.drawCircle(L - 3f, -W * 0.55f, 4f, p);
+            c.drawCircle(L - 3f, W * 0.55f, 4f, p);
             p.setColor(0xFFE53935);
-            c.drawCircle(-L + 3f, -W * 0.55f, 3f, p);
-            c.drawCircle(-L + 3f, W * 0.55f, 3f, p);
+            c.drawCircle(-L + 3f, -W * 0.55f, 3.5f, p);
+            c.drawCircle(-L + 3f, W * 0.55f, 3.5f, p);
         }
         // تاکسی: تابلو
         if (v.type == Vehicle.CAR_TAXI) {
             p.setColor(0xFFFFEB3B);
-            c.drawRoundRect(-7f, -W - 8f, 7f, -W - 2f, 3, 3, p);
+            c.drawRoundRect(-8f, -W - 9f, 8f, -W - 2f, 3, 3, p);
             p.setColor(0xFF37474F);
-            p.setTextSize(7f);
+            p.setTextSize(8f);
             p.setTextAlign(Paint.Align.CENTER);
             c.drawText("تاکسی", 0f, -W - 3.5f, p);
         }
-        // چرخ‌ها
-        p.setColor(0xFF263238);
-        float wy = W - 2f;
-        c.drawCircle(-L * 0.55f, -wy, 7f, p);
-        c.drawCircle(L * 0.55f, -wy, 7f, p);
-        c.drawCircle(-L * 0.55f, wy, 7f, p);
-        c.drawCircle(L * 0.55f, wy, 7f, p);
-        p.setColor(0xFF90A4AE);
-        c.drawCircle(-L * 0.55f, -wy, 3f, p);
-        c.drawCircle(L * 0.55f, -wy, 3f, p);
-        c.drawCircle(-L * 0.55f, wy, 3f, p);
-        c.drawCircle(L * 0.55f, wy, 3f, p);
+        // اتوبوس: تابلو
+        if (bus) {
+            p.setColor(0xFF37474F);
+            p.setTextSize(11f);
+            p.setTextAlign(Paint.Align.CENTER);
+            c.drawText("اتوبوس", 0f, -W - 5f, p);
+        }
         c.restore();
+    }
+
+    // ================= اسب 🐴 =================
+
+    public void drawHorse(Canvas c, float x, float y, float angle, float t, boolean moving) {
+        c.save();
+        c.translate(x, y);
+        c.rotate((float) Math.toDegrees(angle));
+        float swing = moving ? (float) Math.sin(t * 10f) * 5f : 0f;
+
+        // سایه
+        p.setColor(0x33000000);
+        c.drawOval(-32f, 14f, 38f, 26f, p);
+
+        // پاها (دو جفت، تاب طبیعی)
+        p.setColor(0xFF6D4C41);
+        c.drawRoundRect(-24f + swing, 0f, -17f, 18f, 3, 3, p);
+        c.drawRoundRect(14f - swing, 0f, 21f, 18f, 3, 3, p);
+        c.drawRoundRect(-24f - swing, -4f, -17f, 14f, 3, 3, p);
+        c.drawRoundRect(14f + swing, -4f, 21f, 14f, 3, 3, p);
+        // سم‌ها
+        p.setColor(0xFF3E2723);
+        c.drawRoundRect(-24f + swing, 16f, -17f + swing, 20f, 2, 2, p);
+        c.drawRoundRect(14f - swing, 16f, 21f - swing, 20f, 2, 2, p);
+
+        // بدن
+        p.setColor(0xFF8D5524);
+        c.drawRoundRect(-30f, -14f, 26f, 10f, 13, 13, p);
+        // دم
+        p.setColor(0xFF4E342E);
+        p.setStrokeWidth(5f);
+        c.drawLine(-30f, -6f, -40f, 8f, p);
+        p.setStrokeWidth(0.1f);
+        // یال
+        c.drawRoundRect(6f, -24f, 14f, -10f, 5, 5, p);
+        // گردن و سر
+        c.drawRoundRect(16f, -28f, 30f, -6f, 9, 9, p);
+        c.drawCircle(33f, -25f, 8.5f, p);
+        // گوش
+        tri(c, new float[]{28f, -32f, 32f, -32f, 30f, -38f});
+        // چشم و پوزه
+        p.setColor(0xFF3E2723);
+        c.drawCircle(36f, -26f, 1.6f, p);
+        p.setColor(0xFF5D4037);
+        c.drawOval(36f, -22f, 43f, -17f, p);
+        // زین قرمز
+        p.setColor(0xFFB71C1C);
+        c.drawRoundRect(-10f, -19f, 8f, -9f, 4, 4, p);
+        p.setColor(0xFFFFD54F);
+        c.drawCircle(-1f, -14f, 2.5f, p);
+
+        c.restore();
+    }
+
+    // ================= هواپیمای فرودگاه ✈ =================
+
+    public void drawPlane(Canvas c, float x, float y, float angle, float alt, float minutes) {
+        // سایه روی زمین (با ارتفاع دور می‌شود)
+        if (alt > 6f) {
+            p.setColor(0x33000000);
+            c.save();
+            c.translate(x + alt * 0.5f, y + alt * 0.9f);
+            c.rotate((float) Math.toDegrees(angle));
+            c.drawOval(-42f, -13f, 46f, 13f, p);
+            c.restore();
+        }
+
+        c.save();
+        c.translate(x, y);
+        c.rotate((float) Math.toDegrees(angle));
+        float s = 1f + alt / 700f;
+        c.scale(s, s);
+
+        // بال‌ها
+        p.setColor(0xFFB0BEC5);
+        c.drawRoundRect(-12f, -48f, 6f, 48f, 10, 10, p);
+        // بدنه
+        p.setColor(0xFFECEFF1);
+        c.drawRoundRect(-46f, -11f, 48f, 11f, 13, 13, p);
+        p.setColor(0xFFE53935);
+        c.drawRoundRect(-46f, -4f, 48f, 4f, 4, 4, p);
+        // دم
+        tri(c, new float[]{-42f, -2f, -26f, -2f, -42f, -24f});
+        tri(c, new float[]{-42f, 2f, -26f, 2f, -42f, 24f});
+        // کاکپیت
+        p.setColor(0xFF81D4FA);
+        c.drawRoundRect(34f, -7f, 45f, 7f, 4, 4, p);
+        // پنجره‌ها
+        p.setColor(0xFF90CAF9);
+        for (int i = 0; i < 6; i++) {
+            c.drawCircle(-26f + i * 10f, -5f, 2.2f, p);
+        }
+        // ملخ چرخان
+        float spin = Math.abs((float) Math.sin(minutes * 70f));
+        p.setColor(0xFF37474F);
+        p.setStrokeWidth(4.5f);
+        c.drawLine(48f, -17f * spin, 48f, 17f * spin, p);
+        p.setStrokeWidth(0.1f);
+
+        c.restore();
+    }
+
+    // ================= ایستگاه اتوبوس 🚌 =================
+
+    public void drawBusStop(Canvas c, float x, float y, String name, float minutes) {
+        // سایه
+        p.setColor(0x33000000);
+        c.drawOval(x - 30f, y + 18f, x + 30f, y + 30f, p);
+        // نیمکت
+        p.setColor(0xFF8D6E63);
+        c.drawRoundRect(x - 34f, y + 4f, x + 6f, y + 14f, 4, 4, p);
+        c.drawRoundRect(x - 32f, y + 14f, x - 28f, y + 24f, 2, 2, p);
+        c.drawRoundRect(x - 16f, y + 14f, x - 12f, y + 24f, 2, 2, p);
+        // پایه تابلو
+        p.setColor(0xFF546E7A);
+        c.drawRoundRect(x + 16f, y - 32f, x + 22f, y + 20f, 3, 3, p);
+        // تابلوی آبی اتوبوس
+        p.setColor(0xFF1E88E5);
+        c.drawRoundRect(x - 4f, y - 60f, x + 46f, y - 30f, 6, 6, p);
+        p.setColor(0xFFFFFFFF);
+        c.drawRoundRect(x + 0f, y - 56f, x + 42f, y - 46f, 3, 3, p);
+        c.drawRoundRect(x + 4f, y - 54f, x + 38f, y - 48f, 2, 2, p);
+        p.setColor(0xFF0D47A1);
+        c.drawCircle(x + 10f, y - 45f, 3f, p);
+        c.drawCircle(x + 32f, y - 45f, 3f, p);
+        // اسم ایستگاه
+        p.setColor(0xFF37474F);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(16f);
+        c.drawText(name, x + 6f, y - 68f, p);
     }
 
     /**
@@ -664,6 +850,59 @@ public class SpriteLib {
                 p.setColor(0xFF3E2723);
                 c.drawCircle(x + 15f, y - 39f + bob, 1.5f, p);
                 break;
+            case 6:   // خرس
+                p.setColor(0xFF795548);
+                c.drawRoundRect(x - 22f, y - 8f + bob, x + 16f, y + 14f, 12, 12, p);
+                c.drawCircle(x + 18f, y - 8f + bob, 11f, p);
+                c.drawCircle(x + 11f, y - 17f + bob, 4f, p);
+                c.drawCircle(x + 25f, y - 17f + bob, 4f, p);
+                p.setColor(0xFFD7CCC8);
+                c.drawOval(x + 14f, y - 6f + bob, x + 23f, y + 0f + bob, p);
+                p.setColor(0xFF3E2723);
+                c.drawCircle(x + 15f, y - 11f + bob, 1.8f, p);
+                c.drawCircle(x + 22f, y - 11f + bob, 1.8f, p);
+                break;
+            case 7:   // ببر
+                p.setColor(0xFFFF8F00);
+                c.drawRoundRect(x - 24f, y - 6f + bob, x + 18f, y + 14f, 12, 12, p);
+                c.drawCircle(x + 20f, y - 10f + bob, 10f, p);
+                p.setColor(0xFF3E2723);
+                for (int i = 0; i < 4; i++) {
+                    float sx3 = x - 17f + i * 10f;
+                    c.drawLine(sx3, y - 6f + bob, sx3 - 2f, y + 6f + bob, p);
+                }
+                p.setColor(0xFFFFFFFF);
+                c.drawOval(x + 16f, y - 6f + bob, x + 25f, y - 1f + bob, p);
+                p.setColor(0xFF3E2723);
+                c.drawCircle(x + 18f, y - 13f + bob, 1.7f, p);
+                c.drawCircle(x + 24f, y - 13f + bob, 1.7f, p);
+                break;
+            case 8:   // پاندا
+                p.setColor(0xFFFFFFFF);
+                c.drawRoundRect(x - 20f, y - 8f + bob, x + 14f, y + 14f, 12, 12, p);
+                c.drawCircle(x + 15f, y - 10f + bob, 10f, p);
+                p.setColor(0xFF37474F);
+                c.drawCircle(x + 8f, y - 14f + bob, 3.5f, p);
+                c.drawCircle(x + 22f, y - 14f + bob, 3.5f, p);
+                c.drawOval(x + 11f, y - 11f + bob, x + 19f, y - 4f + bob, p);
+                c.drawCircle(x - 6f, y + 2f + bob, 5f, p);
+                c.drawRoundRect(x - 20f, y - 8f + bob, x - 13f, y + 8f, 5, 5, p);
+                p.setColor(0xFF3E2723);
+                c.drawCircle(x + 15f, y - 8f + bob, 1.6f, p);
+                break;
+            case 9:   // شتر
+                p.setColor(0xFFD7A86E);
+                c.drawRoundRect(x - 26f, y - 4f + bob, x + 14f, y + 14f, 12, 12, p);
+                c.drawCircle(x - 8f, y - 12f + bob, 8f, p);
+                c.drawCircle(x + 4f, y - 12f + bob, 8f, p);
+                c.drawRoundRect(x + 14f, y - 26f + bob, x + 22f, y - 2f, 6, 6, p);
+                c.drawCircle(x + 19f, y - 28f + bob, 6.5f, p);
+                p.setColor(0xFF3E2723);
+                c.drawCircle(x + 17f, y - 30f + bob, 1.4f, p);
+                p.setStrokeWidth(3f);
+                c.drawLine(x + 22f, y - 24f + bob, x + 26f, y - 18f + bob, p);
+                p.setStrokeWidth(0.1f);
+                break;
         }
     }
 
@@ -681,91 +920,101 @@ public class SpriteLib {
             return;
         }
 
+        // ✅ ساختمان‌ها کوتاه‌تر شدند (قبلاً خیلی کشیده بودند)
+        float bodyTop = b.y + b.h * 0.22f;
+        float ground = b.y + b.h;
+
         // بدنه
         p.setColor(b.wallColor);
-        c.drawRoundRect(b.x, b.y, b.x + b.w, b.y + b.h, 10, 10, p);
+        c.drawRoundRect(b.x, bodyTop, b.x + b.w, ground, 10, 10, p);
         // سقف
         p.setColor(b.roofColor);
-        c.drawRoundRect(b.x - 6f, b.y - 18f, b.x + b.w + 6f, b.y + 22f, 10, 10, p);
+        c.drawRoundRect(b.x - 6f, bodyTop - 16f, b.x + b.w + 6f, bodyTop + 18f, 10, 10, p);
         p.setColor(0x22000000);
-        c.drawRoundRect(b.x - 6f, b.y + 14f, b.x + b.w + 6f, b.y + 22f, 6, 6, p);
-
-        // ✅ اسم ساختمان روی سقف — همه ساختمان‌ها اسم دارند (درخواست کاربر)
-        drawNameLabel(c, b);
+        c.drawRoundRect(b.x - 6f, bodyTop + 10f, b.x + b.w + 6f, bodyTop + 18f, 6, 6, p);
 
         // پنجره‌ها (شب روشن)
-        int winCols = Math.max(2, (int) (b.w / 130f));
-        float wgap = b.w / (winCols + 1f);
-        for (int i = 0; i < winCols; i++) {
-            float wx = b.x + wgap * (i + 1) - 22f;
-            p.setColor(night ? 0xFFFFF59D : 0xFFB3E5FC);
-            c.drawRoundRect(wx, b.y + 40f, wx + 44f, b.y + 86f, 6, 6, p);
-            p.setColor(0x66000000);
-            p.setStrokeWidth(3f);
-            c.drawLine(wx + 22f, b.y + 40f, wx + 22f, b.y + 86f, p);
+        float winTop = bodyTop + 32f;
+        float winBot = ground - 86f;
+        if (winBot > winTop + 20f) {
+            int winCols = Math.max(2, (int) (b.w / 150f));
+            float wgap = b.w / (winCols + 1f);
+            for (int i = 0; i < winCols; i++) {
+                float wx = b.x + wgap * (i + 1) - 24f;
+                p.setColor(night ? 0xFFFFF59D : 0xFFB3E5FC);
+                c.drawRoundRect(wx, winTop, wx + 46f, winBot, 6, 6, p);
+                p.setColor(0x66000000);
+                p.setStrokeWidth(3f);
+                c.drawLine(wx + 23f, winTop, wx + 23f, winBot, p);
+            }
         }
 
         // در
         p.setColor(0xFF6D4C41);
-        c.drawRoundRect(b.doorX - 24f, b.doorY - 46f, b.doorX + 24f, b.doorY, 8, 8, p);
+        c.drawRoundRect(b.doorX - 24f, b.doorY - 42f, b.doorX + 24f, b.doorY, 8, 8, p);
         p.setColor(0xFFFFD54F);
-        c.drawCircle(b.doorX + 14f, b.doorY - 22f, 3f, p);
+        c.drawCircle(b.doorX + 14f, b.doorY - 20f, 3f, p);
 
-        // تابلوی ویژه هر ساختمان
+        // ✅ اسم ساختمان بالای در — مثلاً «کلانتری ۱۰» (درخواست کاربر)
+        drawNameLabel(c, b);
+
+        // تابلوی ویژه هر ساختمان (کنار اسم، بالای در)
         drawSign(c, b, night);
     }
 
     /**
-     * تابلوی اسم ساختمان — مثلاً «بانک شهر شادی» روی بانک
+     * تابلوی اسم بالای درِ ساختمان — مثلاً «بانک شهر شادی» بالای درِ بانک
      */
     private void drawNameLabel(Canvas c, Building b) {
         String label = b.name();
         if (label == null || label.isEmpty()) return;
-        float ts = Math.min(30f, b.w / (label.length() * 0.62f));
-        if (ts < 13f) ts = 13f;
+        float ts = Math.min(24f, 560f / Math.max(8f, label.length()));
+        if (ts < 15f) ts = 15f;
         p.setTextAlign(Paint.Align.CENTER);
         p.setTextSize(ts);
-        float tw = p.measureText(label) + 30f;
-        float lcx = b.x + b.w / 2f;
+        float tw = p.measureText(label) + 26f;
+        float lcx = b.doorX;
+        float lcy = b.doorY - 56f;
         p.setColor(0xCC37474F);
-        c.drawRoundRect(lcx - tw / 2f, b.y - 15f, lcx + tw / 2f, b.y + 17f, 9, 9, p);
+        c.drawRoundRect(lcx - tw / 2f, lcy - ts * 0.75f, lcx + tw / 2f, lcy + ts * 0.85f, 9, 9, p);
         p.setColor(0xFFFFFFFF);
-        c.drawText(label, lcx, b.y + 6f + ts * 0.2f, p);
+        c.drawText(label, lcx, lcy + ts * 0.35f, p);
     }
 
     private void drawSign(Canvas c, Building b, boolean night) {
-        float sx = b.doorX, sy = b.y - 52f;   // بالاتر از تابلوی اسم
+        float sx = b.doorX - 52f, sy = b.doorY - 56f;   // کنار تابلوی اسم، بالای در
         switch (b.type) {
             case Building.BANK:
                 p.setColor(0xFF2E7D32);
-                c.drawCircle(sx, sy, 16f, p);
+                c.drawCircle(sx, sy, 15f, p);
                 p.setColor(0xFFFFFFFF);
                 p.setTextAlign(Paint.Align.CENTER);
                 p.setTextSize(20f);
                 c.drawText("$", sx, sy + 7f, p);
                 break;
             case Building.HOSPITAL:
+                p.setColor(0xFFE53935);
+                c.drawCircle(sx, sy, 15f, p);
                 p.setColor(0xFFFFFFFF);
-                c.drawRoundRect(sx - 18f, sy - 6f, sx + 18f, sy + 6f, 3, 3, p);
-                c.drawRoundRect(sx - 6f, sy - 18f, sx + 6f, sy + 18f, 3, 3, p);
+                c.drawRoundRect(sx - 11f, sy - 4f, sx + 11f, sy + 4f, 2, 2, p);
+                c.drawRoundRect(sx - 4f, sy - 11f, sx + 4f, sy + 11f, 2, 2, p);
                 break;
             case Building.CINEMA:
                 p.setColor(0xFF6A1B9A);
-                c.drawRoundRect(sx - 46f, sy - 16f, sx + 46f, sy + 16f, 8, 8, p);
-                for (int i = -3; i <= 3; i++) {
+                c.drawRoundRect(sx - 24f, sy - 13f, sx + 24f, sy + 13f, 8, 8, p);
+                for (int i = -2; i <= 2; i++) {
                     p.setColor(night ? 0xFFFFEB3B : 0xFFCE93D8);
-                    c.drawCircle(sx + i * 13f, sy - 16f, 3.5f, p);
-                    c.drawCircle(sx + i * 13f, sy + 16f, 3.5f, p);
+                    c.drawCircle(sx + i * 10f, sy - 13f, 3f, p);
+                    c.drawCircle(sx + i * 10f, sy + 13f, 3f, p);
                 }
                 p.setColor(0xFFFFFFFF);
                 p.setTextAlign(Paint.Align.CENTER);
-                p.setTextSize(15f);
-                c.drawText("★ سینما ★", sx, sy + 5f, p);
+                p.setTextSize(14f);
+                c.drawText("★", sx, sy + 5f, p);
                 break;
             case Building.ZOO:
                 p.setColor(0xFF33691E);
-                c.drawCircle(sx - 14f, sy, 10f, p);
-                c.drawCircle(sx + 14f, sy, 10f, p);
+                c.drawCircle(sx, sy, 15f, p);
                 p.setColor(0xFFFFFFFF);
                 p.setTextAlign(Paint.Align.CENTER);
                 p.setTextSize(16f);
@@ -773,23 +1022,37 @@ public class SpriteLib {
                 break;
             case Building.TRAIN_STATION:
                 p.setColor(0xFF5D4037);
-                c.drawRoundRect(sx - 52f, sy - 14f, sx + 52f, sy + 14f, 8, 8, p);
+                c.drawCircle(sx, sy, 15f, p);
                 p.setColor(0xFFFFD54F);
                 p.setTextAlign(Paint.Align.CENTER);
                 p.setTextSize(15f);
-                c.drawText("🚂 ایستگاه", sx, sy + 5f, p);
+                c.drawText("🚂", sx, sy + 5f, p);
                 break;
             case Building.RESTAURANT:
                 p.setColor(0xFFE65100);
-                c.drawCircle(sx, sy, 14f, p);
+                c.drawCircle(sx, sy, 15f, p);
                 p.setColor(0xFFFFFFFF);
                 p.setTextAlign(Paint.Align.CENTER);
                 p.setTextSize(15f);
                 c.drawText("🍽", sx, sy + 6f, p);
                 break;
+            case Building.CLOTHES:
+                p.setColor(0xFFAD1457);
+                c.drawCircle(sx, sy, 15f, p);
+                p.setColor(0xFFFFFFFF);
+                p.setTextAlign(Paint.Align.CENTER);
+                p.setTextSize(15f);
+                c.drawText("👕", sx, sy + 6f, p);
+                break;
+            case Building.AIRPORT:
+                p.setColor(0xFF0277BD);
+                c.drawCircle(sx, sy, 15f, p);
+                p.setColor(0xFFFFFFFF);
+                p.setTextAlign(Paint.Align.CENTER);
+                p.setTextSize(15f);
+                c.drawText("✈", sx, sy + 6f, p);
+                break;
             default:
-                p.setColor(0x66FFFFFF);
-                c.drawRoundRect(sx - 30f, sy - 10f, sx + 30f, sy + 10f, 6, 6, p);
                 break;
         }
     }
@@ -1193,15 +1456,36 @@ public class SpriteLib {
             Npc n = npcs.get(i);
             if (n.bubble == null || n.bubbleTimer <= 0f) continue;
             p.setTextAlign(Paint.Align.CENTER);
-            p.setTextSize(14f);
+            p.setTextSize(17f);
             float tw = p.measureText(n.bubble) + 26f;
-            float bx = n.x, by = n.y - 78f;
+            float bx = n.x, by = n.y - 80f;
             p.setColor(0xF0FFFFFF);
-            c.drawRoundRect(bx - tw / 2f, by - 22f, bx + tw / 2f, by + 4f, 10, 10, p);
+            c.drawRoundRect(bx - tw / 2f, by - 24f, bx + tw / 2f, by + 4f, 10, 10, p);
             p.setColor(0xFF6D4C41);
             tri(c, new float[]{bx - 7f, by + 3f, bx + 7f, by + 3f, bx, by + 12f});
             p.setColor(0xFF3E2723);
             c.drawText(n.bubble, bx, by - 4f, p);
         }
+    }
+
+    // ================= برفک تلویزیون (عدم اتصال اینترنت) =================
+
+    public void drawMovieStatic(Canvas c, RectF screen, float time) {
+        p.setColor(0xFF0D0D0D);
+        c.drawRect(screen, p);
+        java.util.Random r = new java.util.Random((long) (time * 900f));
+        for (int i = 0; i < 240; i++) {
+            int g = 35 + r.nextInt(200);
+            p.setColor(0xFF000000 | (g << 16) | (g << 8) | g);
+            float bw = 4f + r.nextInt(24);
+            float bh = 3f + r.nextInt(10);
+            float bx = screen.left + r.nextFloat() * Math.max(1f, screen.width() - bw);
+            float by = screen.top + r.nextFloat() * Math.max(1f, screen.height() - bh);
+            c.drawRect(bx, by, bx + bw, by + bh, p);
+        }
+        // خط اسکن متحرک
+        p.setColor(0x55FFFFFF);
+        float ly = screen.top + (time * 240f) % screen.height();
+        c.drawRect(screen.left, ly, screen.right, ly + 7f, p);
     }
 }

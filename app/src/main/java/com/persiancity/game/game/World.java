@@ -23,6 +23,7 @@ public class World {
     public static final int T_SIDEWALK = 5;
     public static final int T_PATH = 6;
     public static final int T_DIRT = 7;
+    public static final int T_RUNWAY = 8;   // باند فرودگاه
 
     public int[][] tileType = new int[G.MAP_H][G.MAP_W];
 
@@ -38,7 +39,22 @@ public class World {
     public final DayNight dayNight = new DayNight();
 
     public RailPath railPath = null;
-    public float trainStationX = -1f, trainStationY = -1f;   // نقطه سکوی ایستگاه
+    public RailPath railPath2 = null;   // حلقه شرق (فرودگاه، شهر ستاره، شهر گلاب)
+    public float trainStationX = -1f, trainStationY = -1f;   // نقطه سکوی ایستگاه اصلی
+
+    /**
+     * حلقه ریل شماره i (۰ = شهر اصلی، ۱ = شرق)
+     */
+    public RailPath rail(int i) {
+        return i == 0 ? railPath : railPath2;
+    }
+
+    // ایستگاه‌های قطار: x، y سکو، شماره حلقه
+    public final ArrayList<float[]> trainStations = new ArrayList<>();
+
+    // ایستگاه‌های اتوبوس بین‌شهری + اسم‌ها
+    public final ArrayList<float[]> busStops = new ArrayList<>();
+    public final ArrayList<String> busStopNames = new ArrayList<>();
 
     public float fountainX = 0f, fountainY = 0f;
     public float waterfallX = 0f, waterfallY = 0f;
@@ -50,6 +66,13 @@ public class World {
     // دریاچه و روستا
     public final ArrayList<float[]> fishSpots = new ArrayList<>();        // x,y,نوع ماهی
     public final ArrayList<float[]> villageAnimals = new ArrayList<>();   // x,y,نوع (۰=گاو ۱=گوسفند)
+
+    // هواپیمای فرودگاه — خودکار بلند می‌شود و فرود می‌آید
+    public float planeX = 0f, planeY = 0f, planeAngle = 0f;
+    public float planeAlt = 0f, planeSpeed = 0f;
+    public int planeState = 0;
+    private float planeTimer = 5f;
+    private float planeCircAng = 0f, planeCircStart = 0f;
 
     // خانه بازیکن و مرجع بازیکن برای ترمز ماشین‌ها
     public Building playerHome = null;
@@ -160,6 +183,14 @@ public class World {
     }
 
     /**
+     * برخورد هنگام شنا — فقط ساختمان‌ها مانع‌اند (آب آزاد است)
+     */
+    public boolean isBlockedForSwim(float x, float y) {
+        if (x < 60f || y < 60f || x >= G.WORLD_W - 60f || y >= G.WORLD_H - 60f) return true;
+        return tileAt(x, y) == T_BUILDING;
+    }
+
+    /**
      * جستجوی نزدیک‌ترین نقطه قابل پیاده‌روی (برای پیاده شدن از قایق)
      */
     public float[] findWalkableNear(float x, float y) {
@@ -200,9 +231,10 @@ public class World {
         interior = Interior.createFor(b);
         if (interior == null) return;
         p.x = interior.doorX;
-        p.y = interior.roomH - 34f;
+        p.y = interior.roomH - 64f;   // کمی بالاتر از در تا خودکار خارج نشود
         p.driving = null;
         p.ridingTrain = false;
+        p.swimming = false;
         interiorNpcs.clear();
         // چند شهروند داخل مغازه‌ها
         if (interior.floorType.equals("restaurant") || interior.floorType.equals("market") || interior.floorType.equals("cafe")) {
@@ -230,6 +262,9 @@ public class World {
 
     public void update(float dt, Player p) {
         dayNight.update(dt);
+
+        // ✈ هواپیمای فرودگاه
+        updatePlane(dt);
 
         // دود
         for (int i = smoke.size() - 1; i >= 0; i--) {
@@ -293,9 +328,12 @@ public class World {
             }
         }
 
-        // ریل قطار
+        // ریل قطار (هر دو حلقه)
         if (railPath != null) {
             sprites.drawRails(c, railPath);
+        }
+        if (railPath2 != null) {
+            sprites.drawRails(c, railPath2);
         }
 
         // درخت‌ها
@@ -363,6 +401,20 @@ public class World {
             sprites.drawFarmAnimal(c, a[0], a[1], (int) a[2], dayNight.minutes + i * 2.1f);
         }
 
+        // 🚌 ایستگاه‌های اتوبوس
+        for (int i = 0; i < busStops.size(); i++) {
+            float[] bs = busStops.get(i);
+            if (bs[0] < tx0 * G.TILE - 120f || bs[0] > (tx1 + 1) * G.TILE + 120f) continue;
+            if (bs[1] < ty0 * G.TILE - 120f || bs[1] > (ty1 + 1) * G.TILE + 120f) continue;
+            sprites.drawBusStop(c, bs[0], bs[1],
+                    i < busStopNames.size() ? busStopNames.get(i) : "ایستگاه", dayNight.minutes);
+        }
+
+        // ✈ هواپیمای فرودگاه
+        if (planeX > 0f) {
+            sprites.drawPlane(c, planeX, planeY - planeAlt * 0.8f, planeAngle, planeAlt, dayNight.minutes);
+        }
+
         // دود
         drawSmoke(c);
     }
@@ -409,6 +461,13 @@ public class World {
                 c.drawCircle(x + G.TILE * 0.65f, y + G.TILE * 0.7f, 3f, paint);
                 c.drawCircle(x + G.TILE * 0.8f, y + G.TILE * 0.2f, 2f, paint);
                 break;
+            case T_RUNWAY:
+                // باند فرودگاه و پیش‌باند
+                paint.setColor(0xFF4A5058);
+                c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
+                paint.setColor(0x88FFFFFF);
+                c.drawRect(x + G.TILE * 0.4f, y + G.TILE * 0.44f, x + G.TILE * 0.6f, y + G.TILE * 0.56f, paint);
+                break;
             case T_BUILDING:
                 paint.setColor(0xFF90A4AE);
                 c.drawRect(x, y, x + G.TILE, y + G.TILE, paint);
@@ -450,6 +509,102 @@ public class World {
             c.drawCircle(s[0], s[1], size, paint);
             paint.setColor(((alpha / 2) << 24) | 0x8A8A8A);
             c.drawCircle(s[0], s[1], size * 0.6f, paint);
+        }
+    }
+
+    // ================= هواپیمای خودکار فرودگاه ✈ =================
+
+    /**
+     * چرخه کامل هواپیما: ترمینال ← تاکسی ← برخاست ← گشت دور نقشه ← فرود ← ترمینال
+     */
+    private void updatePlane(float dt) {
+        planeTimer -= dt;
+        switch (planeState) {
+            case 0:   // پارک در ترمینال
+                if (planeTimer <= 0f) planeState = 1;
+                break;
+
+            case 1: {   // تاکسی به ابتدای باند
+                float tx = 182f * G.TILE, ty = 78.5f * G.TILE;
+                float d = G.dist(planeX, planeY, tx, ty);
+                if (d < 14f) {
+                    planeState = 2;
+                    planeSpeed = 0f;
+                    planeAngle = 0f;
+                } else {
+                    planeAngle = (float) Math.atan2(ty - planeY, tx - planeX);
+                    planeX += (float) Math.cos(planeAngle) * 85f * dt;
+                    planeY += (float) Math.sin(planeAngle) * 85f * dt;
+                }
+                break;
+            }
+
+            case 2:   // شتاب روی باند و برخاست
+                planeSpeed = Math.min(planeSpeed + 160f * dt, 330f);
+                planeX += planeSpeed * dt;
+                planeAngle = 0f;
+                if (planeX > 214f * G.TILE) {
+                    planeState = 3;
+                    planeCircStart = -(float) Math.PI / 2f;
+                    planeCircAng = planeCircStart;
+                    SoundManager.play("jet");
+                }
+                break;
+
+            case 3: {   // پرواز دایره‌ای دور منطقه شرقی
+                planeAlt = Math.min(planeAlt + 70f * dt, 240f);
+                planeCircAng += 0.2f * dt;
+                planeX = 216f * G.TILE + (float) Math.cos(planeCircAng) * 40f * G.TILE;
+                planeY = 96f * G.TILE + (float) Math.sin(planeCircAng) * 29f * G.TILE;
+                planeAngle = (float) Math.atan2(
+                        (float) Math.cos(planeCircAng) * 29f,
+                        -(float) Math.sin(planeCircAng) * 40f);
+                if (planeCircAng >= planeCircStart + (float) (Math.PI * 2.0)) {
+                    planeState = 4;
+                }
+                break;
+            }
+
+            case 4: {   // نزدیک شدن برای فرود (به انتهای شرقی باند)
+                planeAlt = Math.max(planeAlt - 55f * dt, 30f);
+                float tx = 208f * G.TILE, ty = 78.5f * G.TILE;
+                float d = G.dist(planeX, planeY, tx, ty);
+                planeAngle = (float) Math.atan2(ty - planeY, tx - planeX);
+                planeX += (float) Math.cos(planeAngle) * 290f * dt;
+                planeY += (float) Math.sin(planeAngle) * 290f * dt;
+                if (d < 90f) {
+                    planeState = 5;
+                    planeSpeed = 330f;
+                    planeAngle = (float) Math.PI;   // فرود در جهت غرب
+                    SoundManager.play("jet");
+                }
+                break;
+            }
+
+            case 5:   // نشستن روی باند و ترمز
+                planeAlt = Math.max(planeAlt - 130f * dt, 0f);
+                planeSpeed = Math.max(planeSpeed - 80f * dt, 95f);
+                planeX -= planeSpeed * dt;
+                planeAngle = (float) Math.PI;
+                if (planeX < 186f * G.TILE) {
+                    planeState = 6;
+                }
+                break;
+
+            case 6: {   // تاکسی به ترمینال
+                planeAlt = 0f;
+                float tx = 188f * G.TILE, ty = 71.5f * G.TILE;
+                float d = G.dist(planeX, planeY, tx, ty);
+                if (d < 14f) {
+                    planeState = 0;
+                    planeTimer = 8f;
+                } else {
+                    planeAngle = (float) Math.atan2(ty - planeY, tx - planeX);
+                    planeX += (float) Math.cos(planeAngle) * 85f * dt;
+                    planeY += (float) Math.sin(planeAngle) * 85f * dt;
+                }
+                break;
+            }
         }
     }
 

@@ -25,6 +25,8 @@ public class Building {
     public static final int VILLAGE_HOME = 18;
     public static final int BAKERY = 19;
     public static final int FARM = 20;
+    public static final int CLOTHES = 21;
+    public static final int AIRPORT = 22;
 
     public final int type;
     public float x, y;          // گوشه بالا-چپ
@@ -33,6 +35,7 @@ public class Building {
     public int wallColor;
     public int roofColor;
     public String label = null; // اسم سفارشی (مثلاً «خانه تو»)
+    public int doorSide = 0;    // ۰=جنوب ۱=شمال ۲=غرب ۳=شرق — برای ایستگاه‌ها
 
     public Building(int type, float x, float y, float w, float h, int wallColor, int roofColor) {
         this.type = type;
@@ -69,6 +72,8 @@ public class Building {
             case VILLAGE_HOME: return "خانه روستایی";
             case BAKERY: return "نانوایی روستا";
             case FARM: return "مزرعه روستا";
+            case CLOTHES: return "فروشگاه لباس شادی";
+            case AIRPORT: return "فرودگاه شهر شادی";
             default: return "ساختمان";
         }
     }
@@ -122,6 +127,10 @@ public class Building {
                 return "🍞 نانوایی روستا\nنان تازه از تنور، همراه با چای و کیک محلی!\nبوی نان تا وسط روستا می‌آید!";
             case FARM:
                 return "🌾 مزرعه روستا\nگندم، جو و سبزیجات اینجا می‌رویند.\nگاو و گوسفندها همیشه در حال چرا هستند!";
+            case CLOTHES:
+                return "👕 فروشگاه لباس شادی\nبهترین استایل‌های شهر اینجاست!\nیک لباس نو بخر و خوش‌تیپ‌ترین بچه شهر شو!";
+            case AIRPORT:
+                return "✈ فرودگاه شهر شادی\nهواپیماهای بزرگ اینجا خودکار بلند می‌شوند و فرود می‌آیند!\nاز پنجره تماشا کن — چه فوق‌العاده است!";
             case HOME:
                 return "🏠 خانه تو!\nاینجا می‌توانی استراحت کنی و انرژیت را پر کنی.\nتخت خوابت منتظر توست!";
             default:

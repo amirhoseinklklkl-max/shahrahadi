@@ -41,7 +41,8 @@ public class MiniMap {
                 0xFF64B5F6,   // ۴ آب
                 0xFFC9CFD6,   // ۵ پیاده‌رو
                 0xFFE6C99A,   // ۶ مسیر پارک
-                0xFFC8A66B    // ۷ جاده خاکی روستا
+                0xFFC8A66B,   // ۷ جاده خاکی روستا
+                0xFF51585F    // ۸ باند فرودگاه
             };
 
             Paint tp = new Paint();

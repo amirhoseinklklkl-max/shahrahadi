@@ -37,6 +37,16 @@ public class ShopSystem {
     private static final int WHEEL_PRICE = 300;
     private static final int CAROUSEL_PRICE = 250;
 
+    // 👕 استایل‌های فروشگاه لباس: {اسم، اندیس، قیمت}
+    private static final Object[][] OUTFITS_FOR_SALE = {
+        {"👕 استایل آبی", 0, 0},
+        {"🎽 استایل قرمز", 1, 300},
+        {"🌿 استایل سبز", 2, 300},
+        {"⚡ استایل زرد", 3, 350},
+        {"🌊 استایل فیروزه‌ای", 4, 350},
+        {"🌸 استایل صورتی", 5, 300}
+    };
+
     private static final Object[][] CARS_FOR_SALE = {
         {"🚗 سدان شادی", Vehicle.CAR_SEDAN, 8000},
         {"🏎 اسپرت جت", Vehicle.CAR_SPORT, 15000},
@@ -100,6 +110,14 @@ public class ShopSystem {
             case Building.CARSHOP: openCarshopMenu(); break;
             case Building.DOCK: openDockMenu(); break;
             case Building.AMUSEMENT: openAmusementMenu(); break;
+            case Building.CLOTHES:
+                world.enterInterior(b, player);
+                openClothesMenu();
+                break;
+            case Building.AIRPORT:
+                world.enterInterior(b, player);
+                openInfoMenu("فرودگاه شهر شادی ✈", b.info());
+                break;
             case Building.BAKERY:
                 world.enterInterior(b, player);
                 openFoodMenu("نانوایی روستا", BAKERY_FOODS, "بوی نان تازه!");
@@ -199,6 +217,35 @@ public class ShopSystem {
         ui.openMenu(m);
     }
 
+    // ================= فروشگاه لباس 👕 =================
+
+    private void openClothesMenu() {
+        UIManager.Menu m = new UIManager.Menu("فروشگاه لباس شادی — خوش‌تیپ شو!");
+        for (Object[] o : OUTFITS_FOR_SALE) {
+            final int idx = (int) o[1];
+            final int price = (int) o[2];
+            boolean owned = view.outfitOwned[idx];
+            String desc = owned ? "مال توست — همین حالا بپوشش!"
+                    : UIManager.faMoney(price) + " تومان";
+            m.items.add(new UIManager.MenuItem((String) o[0], desc, () -> {
+                if (view.outfitOwned[idx]) {
+                    player.outfit = idx;
+                    SoundManager.play("click");
+                    ui.closeMenu();
+                    ui.toast("استایل عوض شد! حالا خوش‌تیپ شدی!");
+                } else if (pay(price)) {
+                    view.outfitOwned[idx] = true;
+                    player.outfit = idx;
+                    ui.closeMenu();
+                    ui.toast("🎉 لباس نو خریدی و پوشیدی! چه شیکی!");
+                }
+            }));
+        }
+        m.items.add(new UIManager.MenuItem("خروج", "برگرد بیرون",
+                this::exitInteriorNow));
+        ui.openMenu(m);
+    }
+
     // ================= سینما =================
 
     private void openCinemaMenu() {
@@ -229,7 +276,7 @@ public class ShopSystem {
     // ================= باغ‌وحش =================
 
     private void openZooMenu() {
-        UIManager.Menu m = new UIManager.Menu("باغ‌وحش شادی — ۶ حیوان دوست‌داشتنی!");
+        UIManager.Menu m = new UIManager.Menu("باغ‌وحش شادی — ۱۰ حیوان دوست‌داشتنی!");
         m.items.add(new UIManager.MenuItem("بلیط ورود بخر", UIManager.faMoney(ZOO_TICKET) + " تومان — برو پیش حیوان‌ها!",
                 () -> {
                     if (pay(ZOO_TICKET)) {

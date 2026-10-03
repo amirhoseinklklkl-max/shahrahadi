@@ -11,8 +11,8 @@ android {
         applicationId = "com.persiancity.game"
         minSdk = 24
         targetSdk = 34
-        versionCode = 7
-        versionName = "2.3"
+        versionCode = 8
+        versionName = "2.4"
     }
 
     buildTypes {
