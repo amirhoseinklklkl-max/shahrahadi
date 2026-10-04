@@ -34,6 +34,7 @@ public class Vehicle extends Entity {
     public float angle = 0f;          // رادیان
     public int color = 0xFFE53935;
     public boolean owned = false;     // متعلق به بازیکن است؟
+    public int face = 1;              // جهت نگاه اسب: ۱=راست ۱-=چپ (بدون چرخش وارونه!)
 
     // ترافیک
     public char axis = 'H';           // 'H' افقی / 'V' عمودی
@@ -193,6 +194,9 @@ public class Vehicle extends Entity {
                 if (!world.isBlocked(nx, y, 24f)) x = nx;
                 if (!world.isBlocked(x, ny, 24f)) y = ny;
                 angle = (float) Math.atan2(dy, dx);
+                // 🐴 جهت نگاه اسب فقط از مؤلفهٔ افقی — هیچ‌وقت وارونه نمی‌شود
+                float ca = (float) Math.cos(angle);
+                if (Math.abs(ca) > 0.25f) face = ca > 0f ? 1 : -1;
                 anim += dt * 1.3f;
             }
         } else {

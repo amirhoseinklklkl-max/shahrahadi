@@ -424,7 +424,7 @@ public class SpriteLib {
             return;
         }
         if (v.type == Vehicle.CAR_HORSE) {
-            drawHorse(c, v.x, v.y, v.angle, v.anim, v.speed > 5f);
+            drawHorse(c, v.x, v.y, v.face, v.anim, v.speed > 5f);
             return;
         }
         c.save();
@@ -444,22 +444,8 @@ public class SpriteLib {
         p.setColor(0x33000000);
         c.drawRoundRect(-L, W - 4f, L, W + 7f, 9, 9, p);
 
-        // ✅ چرخ‌ها زیر بدنه — فقط کمی از بغل بیرون می‌زنند
-        // (رفع زشتی: قبلاً ۴ لاستیک روی بدنه کشیده می‌شد)
-        p.setColor(0xFF263238);
-        float wy = W + 1.5f;
-        float wx = L * 0.55f;
-        c.drawCircle(-wx, -wy, 8.5f, p);
-        c.drawCircle(wx, -wy, 8.5f, p);
-        c.drawCircle(-wx, wy, 8.5f, p);
-        c.drawCircle(wx, wy, 8.5f, p);
-        p.setColor(0xFF90A4AE);
-        c.drawCircle(-wx, -wy, 3.5f, p);
-        c.drawCircle(wx, -wy, 3.5f, p);
-        c.drawCircle(-wx, wy, 3.5f, p);
-        c.drawCircle(wx, wy, 3.5f, p);
-
-        // ✅ بدنه با طراحی بهتر: سپر، کاپوت، سقف و شیشه‌ها
+        // ✅ بدون چرخ و لاستیک — طبق درخواست کاربر (بدون چرخ قشنگ‌تر است)
+        // بدنه
         p.setColor(v.color);
         c.drawRoundRect(-L, -W, L, W, 10, 10, p);
         p.setColor(0x26000000);
@@ -555,10 +541,14 @@ public class SpriteLib {
 
     // ================= اسب 🐴 =================
 
-    public void drawHorse(Canvas c, float x, float y, float angle, float t, boolean moving) {
+    /**
+     * ✅ اسب همیشه ایستاده رسم می‌شود (رفع باگ: حرکت به پایین اسب را وارونه می‌کرد)
+     * face = ۱ → رو به راست | face = ۱- → رو به چپ (آینه افقی، بدون هیچ چرخشی)
+     */
+    public void drawHorse(Canvas c, float x, float y, int face, float t, boolean moving) {
         c.save();
         c.translate(x, y);
-        c.rotate((float) Math.toDegrees(angle));
+        c.scale(face, 1f);   // فقط آینه افقی — پاها همیشه پایین، سر همیشه بالا
         float swing = moving ? (float) Math.sin(t * 10f) * 5f : 0f;
 
         // سایه
@@ -955,34 +945,41 @@ public class SpriteLib {
         p.setColor(0xFFFFD54F);
         c.drawCircle(b.doorX + 14f, b.doorY - 20f, 3f, p);
 
-        // ✅ اسم ساختمان بالای در — مثلاً «کلانتری ۱۰» (درخواست کاربر)
-        drawNameLabel(c, b);
+        // ✅ اسم ساختمان بالای در — مثلاً «کلانتری ۱۰» (بدون استیکر، متن ساده!)
+        float labelHalf = drawNameLabel(c, b);
 
         // تابلوی ویژه هر ساختمان (کنار اسم، بالای در)
-        drawSign(c, b, night);
+        drawSign(c, b, night, labelHalf);
     }
 
     /**
-     * تابلوی اسم بالای درِ ساختمان — مثلاً «بانک شهر شادی» بالای درِ بانک
+     * ✅ اسم ساختمان — متن ساده روی بدنه (بدون تابلو/استیکر پشتش)
+     * حاشیهٔ تیره دور متن برای خوانایی. عرض نصف متن را برمی‌گرداند.
      */
-    private void drawNameLabel(Canvas c, Building b) {
+    private float drawNameLabel(Canvas c, Building b) {
         String label = b.name();
-        if (label == null || label.isEmpty()) return;
-        float ts = Math.min(24f, 560f / Math.max(8f, label.length()));
-        if (ts < 15f) ts = 15f;
+        if (label == null || label.isEmpty()) return 0f;
+        float ts = Math.min(27f, 560f / Math.max(8f, label.length()));
+        if (ts < 16f) ts = 16f;
         p.setTextAlign(Paint.Align.CENTER);
         p.setTextSize(ts);
-        float tw = p.measureText(label) + 26f;
         float lcx = b.doorX;
-        float lcy = b.doorY - 56f;
-        p.setColor(0xCC37474F);
-        c.drawRoundRect(lcx - tw / 2f, lcy - ts * 0.75f, lcx + tw / 2f, lcy + ts * 0.85f, 9, 9, p);
+        float lcy = b.doorY - 58f;
+        float halfW = p.measureText(label) / 2f;
+        // سایهٔ تیره دور متن (۴ جهت) — به‌جای استیکر پشت متن
+        p.setColor(0xB320262C);
+        c.drawText(label, lcx - 2f, lcy + ts * 0.35f + 2f, p);
+        c.drawText(label, lcx + 2f, lcy + ts * 0.35f + 2f, p);
+        c.drawText(label, lcx - 2f, lcy + ts * 0.35f - 2f, p);
+        c.drawText(label, lcx + 2f, lcy + ts * 0.35f - 2f, p);
         p.setColor(0xFFFFFFFF);
         c.drawText(label, lcx, lcy + ts * 0.35f, p);
+        return halfW;
     }
 
-    private void drawSign(Canvas c, Building b, boolean night) {
-        float sx = b.doorX - 52f, sy = b.doorY - 56f;   // کنار تابلوی اسم، بالای در
+    private void drawSign(Canvas c, Building b, boolean night, float labelHalf) {
+        float sx = b.doorX - labelHalf - 26f, sy = b.doorY - 58f;   // کنار اسم، بالای در
+        if (sx < b.x + 20f) sx = b.x + 20f;   // نرود بیرون ساختمان
         switch (b.type) {
             case Building.BANK:
                 p.setColor(0xFF2E7D32);

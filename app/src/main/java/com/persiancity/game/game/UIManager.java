@@ -28,8 +28,13 @@ public class UIManager {
     private final RectF btnEnter = new RectF();
     private final RectF btnLook = new RectF();
     private final RectF btnPause = new RectF();
-    private final RectF btnExitInt = new RectF();   // ✅ دکمه خروج از ساختمان
+    private final RectF btnExitInt = new RectF();   // ✅ دکمه خروج از ساختمان — وسط پایین صفحه
+    private final RectF btnRideHorse = new RectF(); // 🐴 دکمه سوار شدن به اسب
     public final RectF btnSkipMovie = new RectF();
+    // ✅ دکمه‌های قبول/رد مأموریت
+    private final RectF btnYes = new RectF();
+    private final RectF btnNo = new RectF();
+    public boolean decisionMode = false;   // باکس اطلاعات با دکمه قبول/رد
     private final ArrayList<RectF> menuItemRects = new ArrayList<>();
     private final RectF menuPanel = new RectF();
     private final RectF infoPanel = new RectF();
@@ -102,6 +107,18 @@ public class UIManager {
     public void openInfo(String title, String text) {
         infoTitle = title;
         infoText = text;
+        decisionMode = false;
+        state = UI_INFO;
+        view.joystick.reset();
+    }
+
+    /**
+     * ✅ باکس اطلاعات با دو دکمه: سبز «قبول» و قرمز «رد» (پیشنهاد مأموریت NPC)
+     */
+    public void openDecision(String title, String text) {
+        infoTitle = title;
+        infoText = text;
+        decisionMode = true;
         state = UI_INFO;
         view.joystick.reset();
     }
@@ -109,6 +126,7 @@ public class UIManager {
     public void closeInfo() {
         infoTitle = null;
         infoText = null;
+        decisionMode = false;
         state = UI_PLAY;
     }
 
@@ -123,9 +141,13 @@ public class UIManager {
         btnAction.set(w - margin - bs, h - margin - bs, w - margin, h - margin);
         btnEnter.set(w - margin - bs * 2.6f, h - margin - bs * 0.55f, w - margin - bs * 1.3f, h - margin + bs * 0.55f);
         btnLook.set(w - margin - bs * 2.6f, h - margin - bs * 1.25f, w - margin - bs * 1.3f, h - margin - bs * 0.15f);
-        btnPause.set(margin, h - margin - 68f, margin + 146f, h - margin);
-        btnExitInt.set(margin, h - margin - 178f, margin + 224f, h - margin - 84f);
-        btnSkipMovie.set(w / 2f - 130f, h - 90f, w / 2f + 130f, h - 20f);
+        // ✅ دکمه منو (مکث) — وسط بالای صفحه (درخواست کاربر)
+        btnPause.set(w / 2f - 78f, 14f, w / 2f + 78f, 86f);
+        // ✅ دکمه خروج — وسط پایین صفحه (درخواست کاربر)
+        btnExitInt.set(w / 2f - 122f, h - margin - 88f, w / 2f + 122f, h - margin);
+        btnSkipMovie.set(w / 2f - 130f, h - margin - 178f, w / 2f + 130f, h - margin - 110f);
+        // 🐴 دکمه سوار اسب — بالای دکمه اقدام
+        btnRideHorse.set(w - margin - bs, h - margin - bs * 2.25f, w - margin, h - margin - bs * 1.35f);
     }
 
     /**
@@ -135,7 +157,18 @@ public class UIManager {
     public boolean isPlayButtonAt(float x, float y) {
         return btnAction.contains(x, y) || btnEnter.contains(x, y)
                 || btnLook.contains(x, y) || btnPause.contains(x, y)
-                || btnExitInt.contains(x, y);
+                || btnExitInt.contains(x, y)
+                || (horseButtonVisible() && btnRideHorse.contains(x, y));
+    }
+
+    /** آیا دکمه سوار اسب این لحظه نمایش داده می‌شود؟ */
+    public boolean horseButtonVisible() {
+        return view.rideHorseNear && view.world.interior == null
+                && playerSafeForHorse();
+    }
+
+    private boolean playerSafeForHorse() {
+        return view.player.driving == null && !view.player.ridingTrain && !view.player.swimming;
     }
 
     // ================= لمس =================
@@ -148,7 +181,10 @@ public class UIManager {
             switch (state) {
                 case UI_PLAY:
                     if (btnAction.contains(x, y)) return "action";
-                    // ✅ دکمه خروج از ساختمان — همیشه داخل محیط داخلی در دسترس است
+                    // 🐴 دکمه سوار اسب — فقط وقتی اسبی نزدیک است و دکمه دیده می‌شود
+                    if (actionLabel == null && horseButtonVisible()
+                            && btnRideHorse.contains(x, y)) return "ridehorse";
+                    // ✅ دکمه خروج از ساختمان — وسط پایین، همیشه داخل محیط داخلی در دسترس است
                     if (view.world.interior != null && btnExitInt.contains(x, y)) return "exitint";
                     if (nearBuilding != null && btnEnter.contains(x, y)) return "enter";
                     if (nearBuilding != null && btnLook.contains(x, y)) return "look";
@@ -173,6 +209,11 @@ public class UIManager {
                 }
 
                 case UI_INFO:
+                    // ✅ دکمه‌های قبول/رد مأموریت
+                    if (decisionMode) {
+                        if (btnYes.contains(x, y)) return "yes";
+                        if (btnNo.contains(x, y)) return "no";
+                    }
                     // باکس باز می‌ماند؛ فقط لمس بیرون باکس می‌بندد
                     if (!infoPanel.contains(x, y)) {
                         closeInfo();
@@ -248,14 +289,18 @@ public class UIManager {
                 mm.addDynamic(v.x, v.y, 0xFF00ACC1);
             }
         }
-        mm.draw(c, vw - mmW - 20f, 90f, mmW, pl.x, pl.y);
+        float mmH = mm.draw(c, vw - mmW - 20f, 90f, mmW, pl.x, pl.y);
 
-        // دکمه مکث
+        // ✅ علامت کلاکت + «جایزه» درخشان — گوشه راست پایین مینی‌مپ
+        // (برای جایزه تبلیغ — فعلاً فقط تزئینی است)
+        drawClapperReward(c, vw - mmW - 20f, 90f, mmW, mmH, view.world.dayNight.minutes);
+
+        // دکمه منو (مکث) — وسط بالای صفحه
         p.setColor(0xE6FFFFFF);
-        c.drawRoundRect(btnPause, 14, 14, p);
-        p.setColor(0xFF37474F);
-        p.setTextSize(42f);
-        c.drawText("⏸", btnPause.centerX(), btnPause.centerY() + 15f, p);
+        c.drawRoundRect(btnPause, 16, 16, p);
+        p.setColor(0xFFE65100);
+        p.setTextSize(34f);
+        c.drawText("⏸ منو", btnPause.centerX(), btnPause.centerY() + 12f, p);
 
         // دکمه اقدام
         String al = actionLabel;
@@ -263,40 +308,47 @@ public class UIManager {
         if (al != null) {
             drawButton(c, btnAction, "✋ " + al, 0xFFFF9800, 32f);
         }
+        // 🐴 دکمه سوار اسب — وقتی اسبی نزدیک است (درخواست کاربر)
+        if (horseButtonVisible() && al == null) {
+            drawButton(c, btnRideHorse, "🐴 سوار اسب", 0xFF6D4C41, 30f);
+        }
         if (nearBuilding != null) {
             drawButton(c, btnEnter, "🚪 وارد شو", 0xFF43A047, 30f);
             drawButton(c, btnLook, "👀 نگاه کن", 0xFF1E88E5, 30f);
         }
 
-        // ✅ دکمه خروج از ساختمان — داخل محیط داخلی همیشه دیده می‌شود
+        // ✅ دکمه خروج از ساختمان — وسط پایین صفحه (درخواست کاربر)
         if (view.world.interior != null && state == UI_PLAY) {
-            drawButton(c, btnExitInt, "🚪 خروج", 0xFFE53935, 30f);
+            drawButton(c, btnExitInt, "🚪 خروج", 0xFFE53935, 34f);
         }
 
         // فیلم سینما: دکمه رد کردن
         if (view.moviePlaying) {
-            drawButton(c, btnSkipMovie, "رد کردن فیلم ⏭", 0xFF6A1B9A, 24f);
+            drawButton(c, btnSkipMovie, "رد کردن فیلم ⏭", 0xFF6A1B9A, 26f);
         }
 
-        // پیام
+        // ✅ فلش جهت مأموریت — مثلثی به سمت محل انجام مأموریت (درخواست کاربر)
+        drawMissionArrow(c);
+
+        // پیام (بالا آمده تا زیر دکمه‌های خروج و رد کردن فیلم نیاید)
         if (toast != null && toastTimer > 0f) {
-            p.setTextSize(33f);
-            float tw = p.measureText(toast) + 70f;
+            p.setTextSize(36f);
+            float tw = p.measureText(toast) + 76f;
             p.setColor(0xE637474F);
-            c.drawRoundRect(vw / 2f - tw / 2f, vh - 160f, vw / 2f + tw / 2f, vh - 88f, 18, 18, p);
+            c.drawRoundRect(vw / 2f - tw / 2f, vh - 296f, vw / 2f + tw / 2f, vh - 218f, 18, 18, p);
             p.setColor(0xFFFFFFFF);
-            c.drawText(toast, vw / 2f, vh - 113f, p);
+            c.drawText(toast, vw / 2f, vh - 244f, p);
         }
 
-        // مأموریت
+        // مأموریت — زیر دکمه منو (وسط بالا)
         String mission = view.missions.hudText();
         if (mission != null && state == UI_PLAY) {
-            p.setTextSize(27f);
+            p.setTextSize(28f);
             float tw = p.measureText(mission) + 52f;
             p.setColor(0xD9FFF3E0);
-            c.drawRoundRect(vw / 2f - tw / 2f, 14f, vw / 2f + tw / 2f, 68f, 16, 16, p);
+            c.drawRoundRect(vw / 2f - tw / 2f, 100f, vw / 2f + tw / 2f, 152f, 16, 16, p);
             p.setColor(0xFFE65100);
-            c.drawText("🎯 " + mission, vw / 2f, 50f, p);
+            c.drawText("🎯 " + mission, vw / 2f, 134f, p);
         }
 
         // پنل منو
@@ -342,10 +394,10 @@ public class UIManager {
     }
 
     private void drawMenu(Canvas c) {
-        float pw = Math.min(700f, vw * 0.78f);
+        float pw = Math.min(760f, vw * 0.82f);
         int n = menu.items.size();
-        float rowH = 88f;
-        float ph = 128f + n * rowH;
+        float rowH = 100f;
+        float ph = 140f + n * rowH;
         float px = vw / 2f - pw / 2f;
         float py = Math.max(40f, vh / 2f - ph / 2f);
         menuPanel.set(px, py, px + pw, py + ph);
@@ -353,37 +405,37 @@ public class UIManager {
         p.setColor(0xF7FFF8E1);
         c.drawRoundRect(menuPanel, 24, 24, p);
         p.setColor(0xFFFF9800);
-        c.drawRoundRect(px, py, px + pw, py + 70f, 24, 24, p);
+        c.drawRoundRect(px, py, px + pw, py + 78f, 24, 24, p);
         p.setColor(0xFFFF9800);
-        c.drawRect(px, py + 36f, px + pw, py + 70f, p);
+        c.drawRect(px, py + 40f, px + pw, py + 78f, p);
         p.setColor(0xFFFFFFFF);
-        p.setTextSize(31f);
-        c.drawText(menu.title, vw / 2f, py + 46f, p);
+        p.setTextSize(35f);
+        c.drawText(menu.title, vw / 2f, py + 52f, p);
 
         menuItemRects.clear();
         for (int i = 0; i < n; i++) {
             MenuItem it = menu.items.get(i);
-            float ry = py + 84f + i * rowH;
+            float ry = py + 94f + i * rowH;
             RectF rr = new RectF(px + 20f, ry, px + pw - 20f, ry + rowH - 12f);
             menuItemRects.add(rr);
             p.setColor(0xFFFFFFFF);
             c.drawRoundRect(rr, 14, 14, p);
             p.setColor(0xFF4E342E);
             p.setTextAlign(Paint.Align.RIGHT);
-            p.setTextSize(28f);
-            c.drawText(it.name, rr.right - 20f, rr.top + 34f, p);
+            p.setTextSize(31f);
+            c.drawText(it.name, rr.right - 20f, rr.top + 40f, p);
             if (it.desc != null && !it.desc.isEmpty()) {
                 p.setColor(0xFF8D6E63);
-                p.setTextSize(21f);
-                c.drawText(it.desc, rr.right - 20f, rr.top + 62f, p);
+                p.setTextSize(24f);
+                c.drawText(it.desc, rr.right - 20f, rr.top + 72f, p);
             }
             p.setTextAlign(Paint.Align.CENTER);
         }
     }
 
     private void drawInfo(Canvas c) {
-        float pw = Math.min(780f, vw * 0.86f);
-        float ph = Math.min(560f, vh * 0.8f);
+        float pw = Math.min(860f, vw * 0.9f);
+        float ph = Math.min(640f, vh * 0.88f);
         float px = vw / 2f - pw / 2f;
         float py = vh / 2f - ph / 2f;
         infoPanel.set(px, py, px + pw, py + ph);
@@ -393,39 +445,50 @@ public class UIManager {
         p.setColor(0xFFFFFFFF);
         c.drawRoundRect(infoPanel, 26, 26, p);
         p.setColor(0xFFFF9800);
-        c.drawRoundRect(px, py, px + pw, py + 76f, 26, 26, p);
+        c.drawRoundRect(px, py, px + pw, py + 84f, 26, 26, p);
         p.setColor(0xFFFF9800);
-        c.drawRect(px, py + 40f, px + pw, py + 76f, p);
+        c.drawRect(px, py + 44f, px + pw, py + 84f, p);
         p.setColor(0xFFFFFFFF);
-        p.setTextSize(31f);
-        c.drawText(infoTitle, vw / 2f, py + 50f, p);
+        p.setTextSize(37f);
+        c.drawText(infoTitle, vw / 2f, py + 57f, p);
 
         p.setColor(0xFF4E342E);
-        p.setTextSize(25f);
+        p.setTextSize(31f);   // ✅ متن باکس اطلاعات بزرگ‌تر شد (درخواست کاربر)
         p.setTextAlign(Paint.Align.RIGHT);
         // چند خطی
         String[] lines = infoText.split("\n");
-        float ly = py + 122f;
+        float ly = py + 136f;
         for (String line : lines) {
-            if (line.length() > 40) {
+            if (line.length() > 34) {
                 // شکستن خط طولانی
-                int cut = 40;
-                for (int i = 34; i < Math.min(line.length(), 40); i++) {
+                int cut = 34;
+                for (int i = 28; i < Math.min(line.length(), 34); i++) {
                     if (line.charAt(i) == ' ') { cut = i; break; }
                 }
-                c.drawText(line.substring(0, cut), px + pw - 30f, ly, p);
-                ly += 38f;
-                c.drawText(line.substring(cut), px + pw - 30f, ly, p);
-                ly += 40f;
+                c.drawText(line.substring(0, cut), px + pw - 32f, ly, p);
+                ly += 46f;
+                c.drawText(line.substring(cut), px + pw - 32f, ly, p);
+                ly += 48f;
             } else {
-                c.drawText(line, px + pw - 30f, ly, p);
-                ly += 40f;
+                c.drawText(line, px + pw - 32f, ly, p);
+                ly += 48f;
             }
         }
         p.setTextAlign(Paint.Align.CENTER);
-        p.setColor(0xFF9E9E9E);
-        p.setTextSize(19f);
-        c.drawText("برای بستن، بیرون باکس را لمس کن", vw / 2f, py + ph - 22f, p);
+
+        if (decisionMode) {
+            // ✅ دو دکمه پایین باکس: سبز «قبول» و قرمز «رد» (درخواست کاربر)
+            float byw = pw * 0.42f;
+            float by = py + ph - 118f;
+            btnYes.set(px + pw - 24f - byw, by, px + pw - 24f, by + 88f);
+            btnNo.set(px + 24f, by, px + 24f + byw, by + 88f);
+            drawButton(c, btnYes, "✔ قبول", 0xFF43A047, 34f);
+            drawButton(c, btnNo, "✖ رد", 0xFFE53935, 34f);
+        } else {
+            p.setColor(0xFF9E9E9E);
+            p.setTextSize(23f);
+            c.drawText("برای بستن، بیرون باکس را لمس کن", vw / 2f, py + ph - 24f, p);
+        }
     }
 
     private void drawPause(Canvas c) {
@@ -453,8 +516,8 @@ public class UIManager {
         p.setColor(color);
         c.drawRoundRect(r, 18, 18, p);
         p.setColor(0xFFFFFFFF);
-        p.setTextSize(29f);
-        c.drawText(label, r.centerX(), r.centerY() + 10f, p);
+        p.setTextSize(33f);
+        c.drawText(label, r.centerX(), r.centerY() + 11f, p);
     }
 
     private void drawJoystick(Canvas c) {
@@ -475,5 +538,117 @@ public class UIManager {
         c.drawCircle(kx, ky, j.getRadius() * 0.4f, p);
         p.setColor(0xFFFFFFFF);
         c.drawCircle(kx - 6f, ky - 8f, j.getRadius() * 0.16f, p);
+    }
+
+    // ================= کلاکت جایزه 🎬 =================
+
+    /**
+     * ✅ علامت کلاکت در گوشهٔ راست پایین مینی‌مپ + کلمهٔ «جایزه» با افکت درخشش
+     * (جای دکمهٔ جایزهٔ تبلیغی — فعلاً تزئینی، بعداً جایزه داده می‌شود)
+     */
+    private void drawClapperReward(Canvas c, float mmLeft, float mmTop, float mmW, float mmH, float t) {
+        float bw = 96f, bh = 78f;
+        float bx = mmLeft + mmW - bw + 10f;      // کمی بیرون‌زده از گوشهٔ راست پایین نقشه
+        float by = mmTop + mmH - 30f;
+        float pulse = 0.5f + 0.5f * (float) Math.sin(t * 2.6f);
+
+        // بدنهٔ کلاکت
+        p.setColor(0xF7263238);
+        c.drawRoundRect(bx, by, bx + bw, by + bh, 14, 14, p);
+        p.setColor(0xFFFFFFFF);
+        c.drawRoundRect(bx + 5f, by + 5f, bx + bw - 5f, by + bh - 5f, 10, 10, p);
+
+        // کلاکت: بدنهٔ مشکی با خطوط مورب + بالهٔ بالا
+        float ix = bx + 12f, iy = by + 34f;
+        p.setColor(0xFF263238);
+        c.drawRoundRect(ix, iy, ix + 72f, iy + 30f, 4, 4, p);
+        p.setColor(0xFF263238);
+        c.save();
+        c.rotate(-12f, ix + 36f, iy - 2f);
+        c.drawRoundRect(ix, iy - 12f, ix + 72f, iy + 2f, 3, 3, p);
+        p.setColor(0xFFFFFFFF);
+        for (int i = 0; i < 4; i++) {
+            c.save();
+            c.rotate(-12f, ix + 36f, iy - 2f);
+            c.drawRoundRect(ix + 6f + i * 18f, iy - 12f, ix + 15f + i * 18f, iy + 2f, 2, 2, p);
+            c.restore();
+        }
+        c.restore();
+
+        // حلقه‌های لولا
+        p.setColor(0xFF90A4AE);
+        c.drawCircle(ix + 10f, iy - 4f, 3f, p);
+        c.drawCircle(ix + 62f, iy - 4f, 3f, p);
+
+        // «جایزه» با افکت درخشش (هالهٔ نارنجی تپنده)
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(26f);
+        float tx = bx + bw / 2f;
+        float ty = by + bh + 26f;
+        int glow = (int) (90f + pulse * 130f);
+        p.setColor((glow << 24) | 0xFFFF9800);
+        c.drawText("جایزه", tx - 2f, ty, p);
+        c.drawText("جایزه", tx + 2f, ty, p);
+        c.drawText("جایزه", tx, ty - 2f, p);
+        c.drawText("جایزه", tx, ty + 2f, p);
+        p.setColor((int) (200f + pulse * 55f) << 24 | 0xFFFFD54F);
+        c.drawText("جایزه", tx, ty, p);
+        p.setTextAlign(Paint.Align.CENTER);
+    }
+
+    // ================= فلش جهت مأموریت ➤ =================
+
+    /**
+     * ✅ وقتی مأموریتی فعال است، یک مثلث در لبهٔ صفحه به سمت محل انجام مأموریت می‌چرخد
+     * (مثلاً اگر هدف سمت چپ باشد، مثلث سمت چپ صفحه رو به چپ است)
+     */
+    private void drawMissionArrow(Canvas c) {
+        if (state != UI_PLAY || view.moviePlaying || view.videoOpen) return;
+        if (view.world.interior != null) return;
+        float[] mt = view.missions.activeMarker();
+        if (mt == null) return;
+
+        // تبدیل مختصات دنیا به صفحه
+        float sx = (mt[0] - view.camera.x) * view.camera.zoom + vw / 2f;
+        float sy = (mt[1] - view.camera.y) * view.camera.zoom + vh / 2f;
+
+        // اگر هدف روی صفحه است، نشانگر پرنده بالای ساختمان کافی است
+        if (sx > 60f && sx < vw - 60f && sy > 110f && sy < vh - 100f) return;
+
+        float cx = vw / 2f, cy = vh / 2f;
+        float ang = (float) Math.atan2(sy - cy, sx - cx);
+        float dx = (float) Math.cos(ang), dy = (float) Math.sin(ang);
+
+        // نقطهٔ برخورد جهت با مستطیل مرزی
+        float mX = vw / 2f - 90f, mY = vh / 2f - 80f;
+        float tX = Math.abs(dx) > 0.001f ? mX / Math.abs(dx) : Float.MAX_VALUE;
+        float tY = Math.abs(dy) > 0.001f ? mY / Math.abs(dy) : Float.MAX_VALUE;
+        float tt = Math.min(tX, tY);
+        float ax = cx + dx * tt;
+        float ay = cy + dy * tt;
+        float bounce = (float) Math.sin(view.world.dayNight.minutes * 3.4f) * 8f;
+        ax += dx * bounce;
+        ay += dy * bounce;
+
+        float deg = (float) Math.toDegrees(ang);
+        c.save();
+        c.translate(ax, ay);
+        c.rotate(deg);
+        // مثلث نارنجی با حاشیهٔ سفید
+        p.setColor(0xFFFFFFFF);
+        c.drawCircle(0f, 0f, 34f, p);
+        p.setColor(0xFFFF9800);
+        c.drawCircle(0f, 0f, 29f, p);
+        p.setColor(0xFFFFFFFF);
+        c.drawRoundRect(2f, -7f, 20f, 7f, 3, 3, p);
+        p.setColor(0xFFFFFFFF);
+        c.drawCircle(-14f, 0f, 7f, p);
+        c.restore();
+
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setColor(0xB3FFFFFF);
+        p.setTextSize(22f);
+        c.drawText("مأموریت", ax, ay + 56f, p);
+        p.setTextAlign(Paint.Align.CENTER);
     }
 }

@@ -250,7 +250,8 @@ public class ShopSystem {
 
     private void openCinemaMenu() {
         UIManager.Menu m = new UIManager.Menu("سینما ستاره — امروز: کارتون‌های خفن!");
-        m.items.add(new UIManager.MenuItem("🏎 ماشین‌های مسابقه", "بلیط: " + UIManager.faMoney(CINEMA_TICKET) + " تومان",
+        m.items.add(new UIManager.MenuItem("🐭 تام و جری", "بلیط: " + UIManager.faMoney(CINEMA_TICKET)
+                + " تومان — پخش واقعی روی پرده بزرگ!",
                 () -> buyTicket(0)));
         m.items.add(new UIManager.MenuItem("🐠 ماهی رنگارنگ", "بلیط: " + UIManager.faMoney(CINEMA_TICKET) + " تومان",
                 () -> buyTicket(1)));

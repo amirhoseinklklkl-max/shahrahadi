@@ -29,6 +29,11 @@ public class MissionSystem {
     private int errandReward = 0;
     private String errandText = null;
 
+    // ✅ پیشنهاد در انتظار تصمیم بازیکن (قبول/رد)
+    private int pendingTarget = -1;
+    private int pendingReward = 0;
+    private String pendingText = null;
+
     private final GameView view;
     private final World world;
     private final Player player;
@@ -59,11 +64,12 @@ public class MissionSystem {
     // ================= مأموریت محله‌ای (از NPC ها) =================
 
     /**
-     * یک شهروند مأموریت محله‌ای پیشنهاد می‌دهد — اگر مأموریتی فعال نباشد.
+     * یک شهروند مأموریت محله‌ای پیشنهاد می‌دهد — اگر مأموریتی فعال یا در انتظار نباشد.
+     * ✅ مأموریت تا بازیکن دکمهٔ «قبول» را نزند فعال نمی‌شود.
      * @return متن مأموریت یا null
      */
     public String offerErrand() {
-        if (errandTarget >= 0) return null;   // یکی فعال است
+        if (errandTarget >= 0 || pendingTarget >= 0) return null;   // یکی فعال/در انتظار است
         Object[][] pool = {
             {Building.BANK, "برایم رسید پس‌انداز از بانک شهر شادی بگیر!", 160},
             {Building.BAKERY, "نان تازه از نانوایی روستا برام بخر!", 150},
@@ -72,11 +78,38 @@ public class MissionSystem {
             {Building.CAFE, "یه شکلات داغ از کافه شکلات برام بیار!", 140}
         };
         int pick = rnd.nextInt(pool.length);
-        errandTarget = (int) pool[pick][0];
-        errandReward = (int) pool[pick][2];
-        errandText = (String) pool[pick][1];
+        pendingTarget = (int) pool[pick][0];
+        pendingReward = (int) pool[pick][2];
+        pendingText = (String) pool[pick][1];
         SoundManager.play("mission");
-        return errandText;
+        return pendingText;
+    }
+
+    /**
+     * ✅ بازیکن مأموریت را قبول کرد (دکمهٔ سبز)
+     */
+    public void acceptErrand() {
+        if (pendingTarget < 0) return;
+        errandTarget = pendingTarget;
+        errandReward = pendingReward;
+        errandText = pendingText;
+        clearPending();
+        SoundManager.play("mission");
+        view.ui.toast("مأموریت قبول شد! 🎯 مسیر را دنبال کن");
+    }
+
+    /**
+     * ✅ بازیکن مأموریت را رد کرد (دکمهٔ قرمز)
+     */
+    public void declineErrand() {
+        clearPending();
+        view.ui.toast("باشه، شاید دفعهٔ بعد!");
+    }
+
+    private void clearPending() {
+        pendingTarget = -1;
+        pendingReward = 0;
+        pendingText = null;
     }
 
     public boolean hasErrand() {
@@ -89,6 +122,20 @@ public class MissionSystem {
     public float[] errandMarker() {
         if (errandTarget < 0) return null;
         Building b = world.buildingByType(errandTarget);
+        return b != null ? new float[]{b.doorX, b.doorY} : null;
+    }
+
+    /**
+     * ✅ مکان مأموریت فعال روی نقشه — اول مأموریت محله‌ای، بعد مأموریت اصلی.
+     * برای فلش جهت روی صفحه و نشانگر پرنده استفاده می‌شود.
+     */
+    public float[] activeMarker() {
+        float[] em = errandMarker();
+        if (em != null) return em;
+        if (current >= missions.size()) return null;
+        Mission m = missions.get(current);
+        if (m.buildingType < 0) return null;
+        Building b = world.buildingByType(m.buildingType);
         return b != null ? new float[]{b.doorX, b.doorY} : null;
     }
 

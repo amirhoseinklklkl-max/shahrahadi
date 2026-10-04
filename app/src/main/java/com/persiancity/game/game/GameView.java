@@ -48,6 +48,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     // NPC نزدیک برای گفتگو + وسیله قابل سوار شدن
     private Npc nearNpc = null;
     private Vehicle boardable = null;
+    // 🐴 آیا اسبی نزدیک است؟ (نمایش دکمهٔ «سوار اسب»)
+    public boolean rideHorseNear = false;
 
     // قطار مسافری + ایستگاه‌ها
     private int activeTrainLoop = 0;
@@ -63,8 +65,21 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private int movieIndex = 0;
     private float movieTime = 0f;
 
-    // صدای حیوانات باغ‌وحش
+    // ✅ پخش واقعی ویدیو در سینما (تام و جری) — WebView داخل اکتیویتی
+    public static final String TOM_JERRY_URL = "https://ifilo.net/embed/ahSyhls";
+    public boolean videoOpen = false;
+
+    /** رابط ارتباط با اکتیویتی برای نمایش ویدیوی واقعی سینما */
+    public interface CinemaHost {
+        void openCinemaVideo(String url);
+        void closeCinemaVideo();
+    }
+
+    public CinemaHost cinemaHost = null;
+
+    // صدای حیوانات باغ‌وحش + حیوانات روستا و اسب‌ها (نزدیک که می‌رسی صدا می‌دهند)
     private float zooSoundCd = 0f;
+    private float farmSoundCd = 0f;
     private static final String[] ZOO_SOUNDS = {
         "lion", "elephant", "monkey", "neigh", "birds",
         "giraffe", "bear", "tiger", "birds", "camel"
@@ -287,7 +302,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             jobs.update(dt, player);
 
             // فیلم سینما
-            if (moviePlaying) {
+            if (moviePlaying && !videoOpen) {
                 movieTime += dt;
                 movieTimer -= dt;
                 if (movieTimer <= 0f) {
@@ -308,6 +323,32 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                             SoundManager.play(ZOO_SOUNDS[t]);
                             zooSoundCd = 3.4f + (float) Math.random() * 2.2f;
                             break;
+                        }
+                    }
+                }
+            }
+
+            // 🔊 صدای حیوانات روستا و اسب‌ها — بیرون از ساختمان (درخواست کاربر)
+            if (world.interior == null && !player.ridingTrain) {
+                farmSoundCd -= dt;
+                if (farmSoundCd <= 0f) {
+                    farmSoundCd = 2.6f + (float) Math.random() * 2.0f;
+                    boolean played = false;
+                    // اسب‌های در حال چرا
+                    for (int i = 0; i < world.vehicles.size() && !played; i++) {
+                        Vehicle v = world.vehicles.get(i);
+                        if (v.type == Vehicle.CAR_HORSE && v.isActive()
+                                && G.dist(player.x, player.y, v.x, v.y) < 260f) {
+                            SoundManager.play("neigh");
+                            played = true;
+                        }
+                    }
+                    // گاو و گوسفند روستا
+                    for (int i = 0; i < world.villageAnimals.size() && !played; i++) {
+                        float[] a = world.villageAnimals.get(i);
+                        if (G.dist(player.x, player.y, a[0], a[1]) < 240f) {
+                            SoundManager.play(((int) a[2]) == 0 ? "cow" : "sheep");
+                            played = true;
                         }
                     }
                 }
@@ -383,6 +424,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             nearNpc = null;
             boardable = null;
         }
+        // 🐴 آیا نزدیک‌ترین وسیلهٔ قابل سوار شدن، اسب است؟ (دکمهٔ مخصوص سوار اسب)
+        rideHorseNear = boardable != null && boardable.type == Vehicle.CAR_HORSE;
         ui.actionLabel = al;
     }
 
@@ -476,6 +519,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             float gas = -joystick.getDy();
             v.speed = G.clamp(v.speed + gas * 240f * dt - v.speed * 0.9f * dt, 0f, 150f);
             v.angle += steer * 2.0f * dt * (v.speed > 5f ? 1f : 0f);
+            // ✅ جهت نگاه اسب فقط از مؤلفهٔ افقی — اسب هیچ‌وقت وارونه نمی‌شود
+            float hca = (float) Math.cos(v.angle);
+            if (Math.abs(hca) > 0.25f) v.face = hca > 0f ? 1 : -1;
             float nx = v.x + (float) Math.cos(v.angle) * v.speed * dt;
             float ny = v.y + (float) Math.sin(v.angle) * v.speed * dt;
             if (!world.isBlocked(nx, ny, 20f)) {
@@ -724,12 +770,18 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public void startMovie(int index) {
         movieIndex = index;
         movieTime = 0f;
-        movieTimer = 45f;
         moviePlaying = true;
         movieOffline = !hasInternet();
         if (movieOffline) {
+            movieTimer = 60f;   // برفک هم ۶۰ ثانیه پخش می‌شود
             ui.toast("📡 اینترنت متصل نیست — پخش با برفک!");
+        } else if (index == 0 && cinemaHost != null) {
+            // ✅ تام و جری — پخش واقعی ویدیو در WebView (درخواست کاربر)
+            movieTimer = Float.MAX_VALUE;   // فیلم واقعی پایان زمانی ندارد
+            videoOpen = true;
+            cinemaHost.openCinemaVideo(TOM_JERRY_URL);
         } else {
+            movieTimer = 45f;
             SoundManager.play("success");
             ui.toast("🎬 فیلم شروع شد — از تماشای آن لذت ببر!");
         }
@@ -738,6 +790,20 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public void stopMovie() {
         moviePlaying = false;
         movieOffline = false;
+        if (videoOpen) {
+            videoOpen = false;
+            if (cinemaHost != null) cinemaHost.closeCinemaVideo();
+        }
+    }
+
+    /** اسم فیلم در حال پخش */
+    public String movieName(int i) {
+        switch (i) {
+            case 0: return "تام و جری 🐭";
+            case 1: return "ماهی رنگارنگ 🐠";
+            case 2: return "موشک فضایی 🚀";
+            default: return "کارتون";
+        }
     }
 
     /**
@@ -879,6 +945,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     /**
      * 💬 گفتگو با شهروند — سلام و احوال‌پرسی + شاید یک مأموریت محله‌ای!
+     * ✅ اگر مأموریت داشته باشد، دو دکمهٔ سبز «قبول» و قرمز «رد» نشان داده می‌شود
      */
     private void talkToNpc(Npc n) {
         String greet = Dialogues.greeting();
@@ -886,8 +953,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         SoundManager.play("click");
         String errand = missions.offerErrand();
         if (errand != null) {
-            ui.openInfo("💬 شهروند شهر شادی", greet + "\n\nراستی یک خواهش دارم:\n" + errand
-                    + "\n\nانجامش بدهی جایزه خوبی می‌گیری!");
+            ui.openDecision("💬 شهروند شهر شادی", greet + "\n\nراستی یک خواهش دارم:\n" + errand
+                    + "\n\nانجامش بدهی جایزهٔ خوبی می‌گیری! قبول می‌کنی؟");
         } else {
             ui.openInfo("💬 شهروند شهر شادی", greet + "\n\n" + Dialogues.jobTalk());
         }
@@ -1066,6 +1133,31 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 SoundManager.play("click");
                 onAction();
                 break;
+            case "ridehorse":
+                // 🐴 دکمهٔ مخصوص سوار شدن به اسب (درخواست کاربر)
+                SoundManager.play("click");
+                if (boardable != null && boardable.type == Vehicle.CAR_HORSE) {
+                    player.driving = boardable;
+                    boardable.mode = Vehicle.MODE_PLAYER;
+                    player.x = boardable.x;
+                    player.y = boardable.y;
+                    player.swimming = false;
+                    SoundManager.play("neigh");
+                    ui.toast("سوار اسب شدی! 🐴 با اهرم بران — دکمه اقدام = پیاده شدن");
+                }
+                break;
+            case "yes":
+                // ✅ قبول مأموریت (دکمهٔ سبز)
+                SoundManager.play("click");
+                missions.acceptErrand();
+                ui.closeInfo();
+                break;
+            case "no":
+                // ✅ رد مأموریت (دکمهٔ قرمز)
+                SoundManager.play("click");
+                missions.declineErrand();
+                ui.closeInfo();
+                break;
             case "exitint":
                 // ✅ خروج از ساختمان با دکمه — از هر جای محیط داخلی
                 SoundManager.play("click");
@@ -1136,9 +1228,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                     c.drawCircle(marker[0], marker[1] - 60f - bounce, 5f, bgPaint);
                 }
 
-                // نشانگر مأموریت محله‌ای (از شهروندها) — سبز پرنده
-                float[] em = missions.errandMarker();
-                if (em != null && !player.ridingTrain && player.driving == null) {
+                // نشانگر مأموریت فعال (محله‌ای یا اصلی) — سبز پرنده
+                float[] em = missions.activeMarker();
+                if (em != null && !player.ridingTrain) {
                     sprites.p.setColor(0xFF43A047);
                     float bounce = (float) Math.abs(Math.sin(world.dayNight.minutes * 3.4f)) * 16f;
                     c.drawCircle(em[0], em[1] - 70f - bounce, 12f, sprites.p);
@@ -1196,7 +1288,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 } else {
                     tp.setColor(0xFFFFFFFF);
                     tp.setTextSize(30f);
-                    c.drawText("سینما ستاره در حال پخش...", viewW / 2f, 55f, tp);
+                    c.drawText("🎬 سینما ستاره در حال پخش: " + movieName(movieIndex), viewW / 2f, 55f, tp);
                 }
             }
 

@@ -17,6 +17,11 @@ class GameActivity : AppCompatActivity() {
     private var gameView: GameView? = null
     private var selectedGender = 0
 
+    // ✅ سینما: پخش واقعی ویدیو (تام و جری) با WebView
+    private var rootLayout: android.widget.FrameLayout? = null
+    private var videoOverlay: android.view.View? = null
+    private var cinemaWebView: android.webkit.WebView? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -97,10 +102,116 @@ class GameActivity : AppCompatActivity() {
 
     private fun startGameView() {
         gameView = GameView(this)
+
+        // ✅ سینما: میزبان پخش ویدیوی واقعی (تام و جری از فیلو)
+        gameView!!.cinemaHost = object : GameView.CinemaHost {
+            override fun openCinemaVideo(url: String) {
+                openCinemaOverlay(url)
+            }
+
+            override fun closeCinemaVideo() {
+                closeCinemaOverlay()
+            }
+        }
+
         gameView!!.setKeepScreenOn(true)
-        setContentView(gameView)
+        // لایهٔ ریشه: GameView + پوشش ویدیوی سینما روی آن
+        val root = android.widget.FrameLayout(this)
+        root.addView(
+            gameView, android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        rootLayout = root
+        setContentView(root)
         hideSystemUi()
     }
+
+    // ================= سینما: پخش ویدیوی واقعی 🎬 =================
+
+    /**
+     * نمایش ویدیوی واقعی سینما (تام و جری) در WebView تمام‌صفحه
+     * + دکمهٔ «خروج» وسط پایین (هماهنگ با بازی)
+     */
+    private fun openCinemaOverlay(url: String) {
+        runOnUiThread {
+            val root = rootLayout ?: return@runOnUiThread
+            if (videoOverlay != null) return@runOnUiThread
+
+            val overlay = android.widget.FrameLayout(this)
+            overlay.setBackgroundColor(0xFF000000.toInt())
+
+            val wv = android.webkit.WebView(this)
+            wv.settings.javaScriptEnabled = true
+            wv.settings.domStorageEnabled = true
+            wv.settings.mediaPlaybackRequiresUserGesture = false
+            wv.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            wv.setBackgroundColor(0xFF000000.toInt())
+            wv.webChromeClient = object : android.webkit.WebChromeClient() {}
+            wv.loadUrl(url)
+            overlay.addView(
+                wv, android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+            cinemaWebView = wv
+
+            // دکمهٔ خروج از سینما — وسط پایین صفحه
+            val btn = android.widget.Button(this)
+            btn.text = "✕ خروج از سینما"
+            btn.setTextColor(0xFFFFFFFF.toInt())
+            btn.textSize = 20f
+            btn.isAllCaps = false
+            val bg = android.graphics.drawable.GradientDrawable()
+            bg.setColor(0xE5E53935.toInt())
+            bg.cornerRadius = 30f
+            btn.background = bg
+            btn.setPadding(60, 24, 60, 24)
+            btn.setOnClickListener {
+                SoundManager.play("click")
+                gameView?.stopMovie()
+            }
+            val blp = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+            blp.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+            blp.bottomMargin = 28
+            overlay.addView(btn, blp)
+
+            root.addView(
+                overlay, android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+            videoOverlay = overlay
+            // توقف حلقهٔ بازی حین تماشای فیلم
+            gameView?.pauseGame()
+        }
+    }
+
+    private fun closeCinemaOverlay() {
+        runOnUiThread {
+            videoOverlay?.let { rootLayout?.removeView(it) }
+            cinemaWebView?.let { wv ->
+                try {
+                    wv.stopLoading()
+                    wv.loadUrl("about:blank")
+                    wv.onPause()
+                    wv.destroy()
+                } catch (_: Throwable) {
+                }
+            }
+            cinemaWebView = null
+            videoOverlay = null
+            gameView?.resumeGame()
+        }
+    }
+
+    private fun isCinemaOpen(): Boolean = videoOverlay != null
 
     private fun saveCrashLog(t: Throwable) {
         try {
@@ -140,6 +251,11 @@ class GameActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        gameView?.openPauseMenu()
+        if (isCinemaOpen()) {
+            // حین پخش ویدیو، دکمهٔ برگشت = خروج از سینما
+            gameView?.stopMovie()
+        } else {
+            gameView?.openPauseMenu()
+        }
     }
 }
