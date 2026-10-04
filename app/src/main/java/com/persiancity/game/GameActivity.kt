@@ -246,7 +246,10 @@ class GameActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         gameView?.resumeGame()
-        SoundManager.startMusic()
+        // ✅ داخل سینما موزیک بازی پخش نمی‌شود (درخواست کاربر)
+        if (gameView?.inCinemaNow() != true) {
+            SoundManager.startMusic()
+        }
     }
 
     @Deprecated("Deprecated in Java")

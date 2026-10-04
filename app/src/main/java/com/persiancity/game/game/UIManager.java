@@ -17,6 +17,7 @@ public class UIManager {
     public static final int UI_MENU = 1;
     public static final int UI_INFO = 2;
     public static final int UI_PAUSE = 3;
+    public static final int UI_LEARN = 4;   // ✅ پنل یادگیری مدرسه (اعداد/الفبا)
 
     public int state = UI_PLAY;
 
@@ -34,6 +35,11 @@ public class UIManager {
     // ✅ دکمه‌های قبول/رد مأموریت
     private final RectF btnYes = new RectF();
     private final RectF btnNo = new RectF();
+    // ✅ پنل یادگیری مدرسه
+    private final RectF btnLearnPrev = new RectF();
+    private final RectF btnLearnNext = new RectF();
+    private final RectF btnLearnClose = new RectF();
+    private final RectF learnPanel = new RectF();
     public boolean decisionMode = false;   // باکس اطلاعات با دکمه قبول/رد
     private final ArrayList<RectF> menuItemRects = new ArrayList<>();
     private final RectF menuPanel = new RectF();
@@ -130,6 +136,15 @@ public class UIManager {
         state = UI_PLAY;
     }
 
+    /**
+     * ✅ پنل یادگیری مدرسه — اعداد یا الفبا (درخواست کاربر)
+     */
+    public void openLearn(int mode) {
+        view.learn.open(mode);
+        state = UI_LEARN;
+        view.joystick.reset();
+    }
+
     // ================= چیدمان =================
 
     public void layout(float w, float h) {
@@ -221,6 +236,27 @@ public class UIManager {
                     }
                     break;
 
+                case UI_LEARN: {
+                    // ✅ پنل یادگیری: قبلی / بعدی / بستن
+                    if (btnLearnNext.contains(x, y)) {
+                        view.learn.next();
+                        SoundManager.play("click");
+                        view.playLearnSound();
+                        return "learnnext";
+                    }
+                    if (btnLearnPrev.contains(x, y)) {
+                        view.learn.prev();
+                        SoundManager.play("click");
+                        view.playLearnSound();
+                        return "learnprev";
+                    }
+                    if (btnLearnClose.contains(x, y) || !learnPanel.contains(x, y)) {
+                        state = UI_PLAY;
+                        SoundManager.play("click");
+                    }
+                    break;
+                }
+
                 case UI_PAUSE: {
                     float pw = Math.min(560f, vw * 0.55f);
                     float px = vw / 2f - pw / 2f;
@@ -253,6 +289,7 @@ public class UIManager {
     public void draw(Canvas c, float viewW, float viewH) {
         vw = viewW;
         vh = viewH;
+        Fonts.apply(p);   // ✅ فونت وزیر برای همهٔ متن‌های بازی
         p.setTextAlign(Paint.Align.CENTER);
 
         // نوار بالا: پول + ساعت
@@ -361,6 +398,11 @@ public class UIManager {
             drawInfo(c);
         }
 
+        // ✅ پنل یادگیری مدرسه
+        if (state == UI_LEARN) {
+            drawLearn(c);
+        }
+
         // منوی مکث
         if (state == UI_PAUSE) {
             drawPause(c);
@@ -431,6 +473,73 @@ public class UIManager {
             }
             p.setTextAlign(Paint.Align.CENTER);
         }
+    }
+
+    // ================= پنل یادگیری مدرسه 🏫 =================
+
+    /**
+     * ✅ کارت بزرگ آموزش اعداد / الفبای فارسی — با دکمه‌های قبلی/بعدی و بستن
+     */
+    private void drawLearn(Canvas c) {
+        LearnSystem L = view.learn;
+        float pw = Math.min(780f, vw * 0.85f);
+        float ph = Math.min(610f, vh * 0.88f);
+        float px = vw / 2f - pw / 2f;
+        float py = vh / 2f - ph / 2f;
+        learnPanel.set(px, py, px + pw, py + ph);
+
+        p.setColor(0x77000000);
+        c.drawRect(0, 0, vw, vh, p);
+        p.setColor(0xFFFFFFFF);
+        c.drawRoundRect(learnPanel, 26, 26, p);
+        int headColor = L.mode == 0 ? 0xFF2E7D32 : 0xFF1565C0;
+        p.setColor(headColor);
+        c.drawRoundRect(px, py, px + pw, py + 78f, 26, 26, p);
+        c.drawRect(px, py + 40f, px + pw, py + 78f, p);
+        Fonts.applyBold(p);
+        p.setColor(0xFFFFFFFF);
+        p.setTextSize(33f);
+        c.drawText(L.mode == 0 ? "🔢 آموزش اعداد" : "📖 آموزش الفبای فارسی", vw / 2f, py + 50f, p);
+
+        // کارت سفید بزرگ
+        p.setColor(0xFFF5F5F5);
+        c.drawRoundRect(px + 40f, py + 100f, px + pw - 40f, py + ph - 190f, 20, 20, p);
+
+        // نماد بزرگ (عدد یا حرف)
+        Fonts.applyBold(p);
+        p.setColor(headColor);
+        p.setTextSize(L.mode == 0 ? 145f : 125f);
+        c.drawText(L.glyph(), vw / 2f, py + 288f, p);
+        // کلمهٔ آن
+        Fonts.apply(p);
+        p.setColor(0xFF4E342E);
+        p.setTextSize(44f);
+        c.drawText(L.word(), vw / 2f, py + 352f, p);
+        // مثال
+        p.setColor(0xFF8D6E63);
+        p.setTextSize(27f);
+        c.drawText(L.example(), vw / 2f, py + 398f, p);
+
+        // شمارهٔ کارت
+        p.setColor(0xFF9E9E9E);
+        p.setTextSize(24f);
+        c.drawText(G.fa(String.valueOf(L.index + 1)) + " از " + G.fa(String.valueOf(L.count())),
+                vw / 2f, py + ph - 162f, p);
+
+        // دکمه‌های قبلی / بعدی
+        float bw2 = pw * 0.34f;
+        btnLearnPrev.set(px + 30f, py + ph - 132f, px + 30f + bw2, py + ph - 46f);
+        btnLearnNext.set(px + pw - 30f - bw2, py + ph - 132f, px + pw - 30f, py + ph - 46f);
+        drawButton(c, btnLearnNext, "بعدی ▶", 0xFF43A047, 30f);
+        drawButton(c, btnLearnPrev, "◀ قبلی", 0xFF1E88E5, 30f);
+
+        // دکمهٔ بستن (بالا-چپ پنل)
+        btnLearnClose.set(px + 16f, py + 14f, px + 76f, py + 74f);
+        p.setColor(0xE5E53935);
+        c.drawCircle(btnLearnClose.centerX(), btnLearnClose.centerY(), 27f, p);
+        p.setColor(0xFFFFFFFF);
+        p.setTextSize(28f);
+        c.drawText("✕", btnLearnClose.centerX(), btnLearnClose.centerY() + 10f, p);
     }
 
     private void drawInfo(Canvas c) {
@@ -548,8 +657,9 @@ public class UIManager {
      */
     private void drawClapperReward(Canvas c, float mmLeft, float mmTop, float mmW, float mmH, float t) {
         float bw = 96f, bh = 78f;
-        float bx = mmLeft + mmW - bw + 10f;      // کمی بیرون‌زده از گوشهٔ راست پایین نقشه
-        float by = mmTop + mmH - 30f;
+        float bx = mmLeft + mmW - bw + 10f;      // کمی بیرون‌زده از گوشهٔ راست نقشه
+        // ✅ یکم پایین‌تر — دیگر روی مینی‌مپ قرار ندارد (درخواست کاربر)
+        float by = mmTop + mmH + 14f;
         float pulse = 0.5f + 0.5f * (float) Math.sin(t * 2.6f);
 
         // بدنهٔ کلاکت

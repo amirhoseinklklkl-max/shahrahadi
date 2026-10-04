@@ -249,14 +249,14 @@ public class ShopSystem {
     // ================= سینما =================
 
     private void openCinemaMenu() {
-        UIManager.Menu m = new UIManager.Menu("سینما ستاره — امروز: کارتون‌های خفن!");
+        // ✅ فقط فیلم‌های واقعی از فیلو — فیلم‌های ساختگی حذف شدند (درخواست کاربر)
+        UIManager.Menu m = new UIManager.Menu("سینما ستاره — کارتون‌های واقعی!");
         m.items.add(new UIManager.MenuItem("🐭 تام و جری", "بلیط: " + UIManager.faMoney(CINEMA_TICKET)
                 + " تومان — پخش واقعی روی پرده بزرگ!",
                 () -> buyTicket(0)));
-        m.items.add(new UIManager.MenuItem("🐠 ماهی رنگارنگ", "بلیط: " + UIManager.faMoney(CINEMA_TICKET) + " تومان",
+        m.items.add(new UIManager.MenuItem("🧽 باب اسفنجی", "بلیط: " + UIManager.faMoney(CINEMA_TICKET)
+                + " تومان — پخش واقعی روی پرده بزرگ!",
                 () -> buyTicket(1)));
-        m.items.add(new UIManager.MenuItem("🚀 موشک فضایی", "بلیط: " + UIManager.faMoney(CINEMA_TICKET) + " تومان",
-                () -> buyTicket(2)));
         ui.openMenu(m);
     }
 

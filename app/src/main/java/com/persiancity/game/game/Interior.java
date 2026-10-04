@@ -32,6 +32,8 @@ public class Interior {
     public static final int F_SCREEN = 9;    // پرده سینما
     public static final int F_BOOKCASE = 10;
     public static final int F_DESK = 11;
+    public static final int F_NUMBOARD = 12;    // ✅ تخته آموزش اعداد
+    public static final int F_ALPHABOARD = 13;  // ✅ تخته آموزش الفبا
 
     public Interior(Building b, int tilesW, int tilesH, String floorType) {
         this.building = b;
@@ -211,11 +213,14 @@ public class Interior {
 
     private static Interior buildSchool(Building b) {
         Interior in = new Interior(b, 14, 9, "school");
+        // ✅ دو تختهٔ آموزشی: اعداد (چپ) و الفبا (راست) — نزدیک که شوی دکمهٔ یادگیری می‌آید
+        in.addFurniture(60, 46, 200, 64, 0xFF2E7D32, F_NUMBOARD);
+        in.addFurniture(600, 46, 230, 64, 0xFF1565C0, F_ALPHABOARD);
         in.addFurniture(300, 50, 240, 46, 0xFF455A64, F_DESK);   // میز معلم
         for (int i = 0; i < 4; i++) {
             in.addFurniture(80 + i * 160f, 220, 110, 44, 0xFFFFB74D, F_DESK);
         }
-        in.addFurniture(620, 60, 70, 70, 0xFF66BB6A, F_PLANT);
+        in.addFurniture(780, 380, 70, 70, 0xFF66BB6A, F_PLANT);
         return in;
     }
 

@@ -698,5 +698,26 @@ public final class CityBuilder {
         Npc.scatter(w.cityNpcs, w, 8, 232f * G.TILE, 30f * G.TILE, 10f * G.TILE);
         // شهر گلاب
         Npc.scatter(w.cityNpcs, w, 8, 213f * G.TILE, 139f * G.TILE, 12f * G.TILE);
+
+        // ✅ دانش‌آموزها با کوله‌پشتی در حیاط هر دو مدرسه (درخواست کاربر)
+        // مدرسه دانش (شهر اصلی) — جلوی حیاط
+        Building school = w.buildingByType(Building.SCHOOL);
+        if (school != null) {
+            for (int i = 0; i < 4; i++) {
+                float kx = school.doorX + (i - 1.5f) * 78f;
+                float ky = school.doorY + 60f + (i % 2) * 46f;
+                if (!w.isBlocked(kx, ky, 14f)) w.cityNpcs.add(Npc.schoolKid(kx, ky));
+            }
+        }
+        // دبستان ستاره (شهر شرق)
+        for (Building b : w.buildings) {
+            if (b.type == Building.SCHOOL && b != school) {
+                for (int i = 0; i < 3; i++) {
+                    float kx = b.doorX + (i - 1f) * 70f;
+                    float ky = b.doorY + 55f;
+                    if (!w.isBlocked(kx, ky, 14f)) w.cityNpcs.add(Npc.schoolKid(kx, ky));
+                }
+            }
+        }
     }
 }

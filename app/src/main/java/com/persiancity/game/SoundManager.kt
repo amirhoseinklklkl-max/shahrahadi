@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.MediaPlayer
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.min
@@ -115,6 +116,40 @@ object SoundManager {
         if (isMuted) return
         val samples = cache[name] ?: return
         playSamples(samples)
+    }
+
+    private var assetPlayer: MediaPlayer? = null
+
+    /**
+     * ✅ پخش فایل صوتی از assets (برای صداهای آموزش مدرسه و آینده)
+     * اگر فایل وجود نداشته باشد بی‌صدا رد می‌شود — هیچ خطایی نمی‌دهد.
+     * مسیر مثال: "school/numbers/3.mp3"
+     */
+    @JvmStatic
+    fun playAsset(context: Context, path: String) {
+        if (isMuted) return
+        try {
+            assetPlayer?.release()
+            assetPlayer = null
+            val afd = context.assets.openFd(path)
+            val mp = MediaPlayer()
+            mp.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_GAME)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            afd.close()
+            mp.prepare()
+            mp.start()
+            assetPlayer = mp
+            mp.setOnCompletionListener { player ->
+                player.release()
+                if (assetPlayer === player) assetPlayer = null
+            }
+        } catch (_: Exception) {
+        }
     }
 
     private fun playSamples(samples: ShortArray) {

@@ -12,6 +12,8 @@ public class Npc extends Entity {
     public final int pants;
     public final int hairStyle;
     public final int skin;
+    public boolean backpack = false;      // ✅ کوله‌پشتی (دانش‌آموزها)
+    public int backpackColor = 0xFFE53935; // رنگ کوله
 
     private float wanderTimer = 0f;
     private float vx = 0f, vy = 0f;
@@ -90,6 +92,17 @@ public class Npc extends Entity {
             "مراقب ماشین‌ها باش ها!"
         };
         return talks[rnd.nextInt(talks.length)];
+    }
+
+    /**
+     * ✅ دانش‌آموز با کوله‌پشتی — برای حیاط و سالن مدرسه
+     */
+    public static Npc schoolKid(float x, float y) {
+        Npc n = new Npc(x, y, rnd.nextInt(2));
+        n.backpack = true;
+        int[] packs = {0xFFE53935, 0xFF1E88E5, 0xFF43A047, 0xFFFFB300, 0xFF8E24AA};
+        n.backpackColor = packs[rnd.nextInt(packs.length)];
+        return n;
     }
 
     public static void scatter(ArrayList<Npc> list, World world, int count, float cx, float cy, float range) {

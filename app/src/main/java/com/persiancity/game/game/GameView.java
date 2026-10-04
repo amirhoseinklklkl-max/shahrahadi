@@ -51,6 +51,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     // 🐴 آیا اسبی نزدیک است؟ (نمایش دکمهٔ «سوار اسب»)
     public boolean rideHorseNear = false;
 
+    // ✅ بخش یادگیری مدرسه (اعداد/الفبا)
+    public final LearnSystem learn = new LearnSystem();
+
     // قطار مسافری + ایستگاه‌ها
     private int activeTrainLoop = 0;
     private int nearStationIdx = -1;
@@ -65,9 +68,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private int movieIndex = 0;
     private float movieTime = 0f;
 
-    // ✅ پخش واقعی ویدیو در سینما (تام و جری) — WebView داخل اکتیویتی
-    public static final String TOM_JERRY_URL = "https://ifilo.net/embed/ahSyhls";
+    // ✅ پخش واقعی ویدیو در سینما — WebView داخل اکتیویتی
+    // (فقط فیلم‌های واقعی از فیلو — فیلم‌های ساختگی حذف شدند، درخواست کاربر)
+    public static final String[] MOVIE_URLS = {
+        "https://ifilo.net/embed/ahSyhls",   // 🐭 تام و جری
+        "https://ifilo.net/embed/fRmSWBs"    // 🧽 باب اسفنجی
+    };
     public boolean videoOpen = false;
+
+    // ✅ موزیک بازی در سینما قطع می‌شود و بعد از خروج دوباره پخش می‌شود (درخواست کاربر)
+    private boolean cinemaMusicOff = false;
 
     /** رابط ارتباط با اکتیویتی برای نمایش ویدیوی واقعی سینما */
     public interface CinemaHost {
@@ -103,6 +113,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         try {
             SoundManager.init(context);
+            Fonts.init(context);   // ✅ فونت فارسی وزیر برای همهٔ متن‌ها
 
             jobs = new JobSystem(this, world, player, ui);
             shop = new ShopSystem(this, world, player, ui);
@@ -179,7 +190,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             thread.setRunning(true);
             thread.start();
         }
-        SoundManager.startMusic();
+        // ✅ داخل سینما موزیک پخش نمی‌شود (درخواست کاربر)
+        if (!inCinemaNow()) SoundManager.startMusic();
     }
 
     @Override
@@ -207,6 +219,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     public void resumeGame() {
         if (thread != null) thread.setPaused(false);
+    }
+
+    /** آیا بازیکن الان داخل سینما است؟ */
+    public boolean inCinemaNow() {
+        return world.interior != null && world.interior.floorType.equals("cinema");
+    }
+
+    /** 🔊 صدای کارت آموزشی مدرسه — اگر فایل صدا در assets باشد پخش می‌شود */
+    public void playLearnSound() {
+        SoundManager.playAsset(appContext, learn.soundPath());
     }
 
     public void openPauseMenu() {
@@ -273,6 +295,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             world.update(dt, player);
             ui.update(dt);
             missions.update(dt);
+
+            // ✅ سینما: موزیک بازی قطع — بعد از خروج دوباره پخش (درخواست کاربر)
+            boolean inCinema = inCinemaNow();
+            if (inCinema && !cinemaMusicOff) {
+                cinemaMusicOff = true;
+                SoundManager.stopMusic();
+            } else if (!inCinema && cinemaMusicOff) {
+                cinemaMusicOff = false;
+                SoundManager.startMusic();
+            }
 
             // سواری شهربازی (چرخ‌وفلک / سرسیر)
             if (rideKind > 0) {
@@ -385,6 +417,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 }
             }
         }
+        // ✅ تخته‌های آموزشی مدرسه — نزدیک که شوی دکمهٔ یادگیری می‌آید (درخواست کاربر)
+        if (al == null && world.interior != null && world.interior.floorType.equals("school")) {
+            int board = nearSchoolBoard();
+            if (board == 1) al = "🔢 یادگیری اعداد";
+            else if (board == 2) al = "📖 یادگیری الفبا";
+        }
         // ✅ دکمه پیاده شدن برای همه وسیله‌ها (ماشین، قایق، هلی، اسب، قطار)
         if (al == null && player.driving != null) {
             al = "پیاده شو";
@@ -427,6 +465,22 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         // 🐴 آیا نزدیک‌ترین وسیلهٔ قابل سوار شدن، اسب است؟ (دکمهٔ مخصوص سوار اسب)
         rideHorseNear = boardable != null && boardable.type == Vehicle.CAR_HORSE;
         ui.actionLabel = al;
+    }
+
+    /** ✅ ۰ = هیچ | ۱ = تخته اعداد | ۲ = تخته الفبا (فقط داخل مدرسه) */
+    private int nearSchoolBoard() {
+        if (world.interior == null) return 0;
+        for (int i = 0; i < world.interior.furniture.size(); i++) {
+            int[] st = world.interior.furnitureStyle.get(i);
+            if (st[1] != Interior.F_NUMBOARD && st[1] != Interior.F_ALPHABOARD) continue;
+            float[] f = world.interior.furniture.get(i);
+            float cx = f[0] + f[2] / 2f;
+            float cy = f[1] + f[3] + 60f;   // کمی جلوی تخته
+            if (G.dist(player.x, player.y, cx, cy) < 170f) {
+                return st[1] == Interior.F_NUMBOARD ? 1 : 2;
+            }
+        }
+        return 0;
     }
 
     private int nearestTrainStation(float maxDist) {
@@ -514,31 +568,37 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         }
 
         if (v.type == Vehicle.CAR_HORSE) {
-            // 🐴 سواری اسب — همه‌جا می‌رود (به جز آب و ساختمان)
-            float steer = joystick.getDx();
-            float gas = -joystick.getDy();
-            v.speed = G.clamp(v.speed + gas * 240f * dt - v.speed * 0.9f * dt, 0f, 150f);
-            v.angle += steer * 2.0f * dt * (v.speed > 5f ? 1f : 0f);
-            // ✅ جهت نگاه اسب فقط از مؤلفهٔ افقی — اسب هیچ‌وقت وارونه نمی‌شود
-            float hca = (float) Math.cos(v.angle);
-            if (Math.abs(hca) > 0.25f) v.face = hca > 0f ? 1 : -1;
-            float nx = v.x + (float) Math.cos(v.angle) * v.speed * dt;
-            float ny = v.y + (float) Math.sin(v.angle) * v.speed * dt;
-            if (!world.isBlocked(nx, ny, 20f)) {
-                v.x = G.clamp(nx, 100f, G.WORLD_W - 100f);
-                v.y = G.clamp(ny, 100f, G.WORLD_H - 100f);
+            // 🐴✅ سواری اسب — کنترل مستقیم مثل پیاده‌روی ولی خیلی تندتر (درخواست کاربر)
+            // دیگر مدل فرمان گازی ماشین ندارد؛ اهرم هر سمت بروی، اسب همان سمت می‌دود.
+            float jx = joystick.getDx();
+            float jy = joystick.getDy();
+            float mag = (float) Math.sqrt(jx * jx + jy * jy);
+            if (mag > 0.14f) {
+                float nx = jx / Math.max(mag, 1f), ny = jy / Math.max(mag, 1f);
+                float spd = 290f * Math.min(1f, mag);   // تندتر از پیاده (۲۱۵)
+                float hx = v.x + nx * spd * dt;
+                float hy = v.y + ny * spd * dt;
+                if (!world.isBlocked(hx, hy, 20f)) {
+                    v.x = G.clamp(hx, 100f, G.WORLD_W - 100f);
+                    v.y = G.clamp(hy, 100f, G.WORLD_H - 100f);
+                }
+                // جهت نگاه بازیکن و اسب
+                if (Math.abs(nx) > Math.abs(ny)) {
+                    player.dir = nx > 0 ? 3 : 1;
+                    v.face = nx > 0 ? 1 : -1;
+                } else {
+                    player.dir = ny > 0 ? 0 : 2;
+                }
+                v.angle = (float) Math.atan2(ny, nx);
+                v.anim += dt * 1.5f;   // یال و پاهای اسب تکان می‌خورد
+                v.speed = spd;
             } else {
                 v.speed = 0f;
+                v.anim += dt * 0.2f;
             }
             player.x = v.x;
             player.y = v.y;
-            float ca = (float) Math.cos(v.angle), sa = (float) Math.sin(v.angle);
-            if (Math.abs(ca) > Math.abs(sa)) player.dir = ca > 0 ? 3 : 1;
-            else player.dir = sa > 0 ? 0 : 2;
-            v.anim += dt;
-            SoundManager.startEngine();
-            SoundManager.setEngineChop(false);
-            SoundManager.setEngineIntensity(v.speed / 300f);
+            // ✅ دیگر هیچ صدای موتور/بیس/نویز نداریم — اسب فقط شیهه می‌کند (درخواست کاربر)
             return;
         }
 
@@ -775,15 +835,14 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         if (movieOffline) {
             movieTimer = 60f;   // برفک هم ۶۰ ثانیه پخش می‌شود
             ui.toast("📡 اینترنت متصل نیست — پخش با برفک!");
-        } else if (index == 0 && cinemaHost != null) {
-            // ✅ تام و جری — پخش واقعی ویدیو در WebView (درخواست کاربر)
+        } else if (index >= 0 && index < MOVIE_URLS.length && cinemaHost != null) {
+            // ✅ پخش واقعی ویدیو در WebView (تام و جری / باب اسفنجی از فیلو)
             movieTimer = Float.MAX_VALUE;   // فیلم واقعی پایان زمانی ندارد
             videoOpen = true;
-            cinemaHost.openCinemaVideo(TOM_JERRY_URL);
+            cinemaHost.openCinemaVideo(MOVIE_URLS[index]);
         } else {
-            movieTimer = 45f;
-            SoundManager.play("success");
-            ui.toast("🎬 فیلم شروع شد — از تماشای آن لذت ببر!");
+            movieTimer = 60f;
+            movieOffline = true;   // بدون میزبان ویدیو = برفک
         }
     }
 
@@ -800,8 +859,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public String movieName(int i) {
         switch (i) {
             case 0: return "تام و جری 🐭";
-            case 1: return "ماهی رنگارنگ 🐠";
-            case 2: return "موشک فضایی 🚀";
+            case 1: return "باب اسفنجی 🧽";
             default: return "کارتون";
         }
     }
@@ -850,6 +908,23 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
 
+        // ✅ تخته‌های آموزشی مدرسه — یادگیری اعداد و الفبا (درخواست کاربر)
+        if (world.interior != null && world.interior.floorType.equals("school")) {
+            int board = nearSchoolBoard();
+            if (board == 1) {
+                ui.openLearn(0);
+                SoundManager.play("success");
+                playLearnSound();
+                return;
+            }
+            if (board == 2) {
+                ui.openLearn(1);
+                SoundManager.play("success");
+                playLearnSound();
+                return;
+            }
+        }
+
         if (world.interior != null) return;
 
         // 🚂 سوار قطار مسافری از ایستگاه نزدیک
@@ -883,8 +958,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 SoundManager.play("splash");
                 ui.toast("سوار قایق شدی! ⛵ با اهرم دریانوردی کن");
             } else if (boardable.type == Vehicle.CAR_HORSE) {
+                SoundManager.stopEngine();   // ✅ اسب صدای موتور ندارد
                 SoundManager.play("neigh");
-                ui.toast("سوار اسب شدی! 🐴 تندتر از پیاده راه می‌ری");
+                ui.toast("سوار اسب شدی! 🐴 اهرم هر طرف بروی، اسب همان طرف می‌دود");
             } else {
                 SoundManager.play("door");
                 ui.toast("سوار شدی! با اهرم بران — دکمه اقدام = پیاده شدن");
@@ -1092,7 +1168,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                     return;
                 }
                 if (ui.state == UIManager.UI_INFO || ui.state == UIManager.UI_MENU
-                        || ui.state == UIManager.UI_PAUSE) return;
+                        || ui.state == UIManager.UI_PAUSE || ui.state == UIManager.UI_LEARN) return;
                 if (moviePlaying) {
                     if (ui.btnSkipMovie.contains(x, y)) {
                         stopMovie();
@@ -1142,8 +1218,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                     player.x = boardable.x;
                     player.y = boardable.y;
                     player.swimming = false;
+                    SoundManager.stopEngine();   // ✅ هیچ بیس/نویزی با اسب نمی‌آید
                     SoundManager.play("neigh");
-                    ui.toast("سوار اسب شدی! 🐴 با اهرم بران — دکمه اقدام = پیاده شدن");
+                    ui.toast("سوار اسب شدی! 🐴 اهرم هر طرف بروی، اسب همان طرف می‌دود");
                 }
                 break;
             case "yes":
@@ -1183,6 +1260,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 break;
             case "sound":
                 SoundManager.setMuted(appContext, !SoundManager.isMuted());
+                // ✅ اگر داخل سینما هستیم، بعد از روشن کردن صدا هم موزیک نباید پخش شود
+                if (!SoundManager.isMuted() && inCinemaNow()) SoundManager.stopMusic();
                 break;
             case "save":
                 saveNow();
@@ -1255,18 +1334,31 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
                 // پرده سینما: فیلم تمام‌صفحه (یا برفک اگر اینترنت نباشد)
                 if (world.interior.floorType.equals("cinema") && moviePlaying) {
+                    if (movieOffline) {
                     for (int i = 0; i < world.interior.furniture.size(); i++) {
                         int[] st = world.interior.furnitureStyle.get(i);
                         if (st[1] == 9) {
                             float[] f = world.interior.furniture.get(i);
                             movieScreen.set(f[0] + 6f, f[1] + 6f, f[0] + f[2] - 6f, f[1] + f[3] - 6f);
-                            if (movieOffline) {
-                                sprites.drawMovieStatic(c, movieScreen, movieTime);
-                            } else {
-                                sprites.drawMovie(c, movieScreen, movieIndex, movieTime);
-                            }
+                            sprites.drawMovieStatic(c, movieScreen, movieTime);
                         }
                     }
+                } else if (!videoOpen) {
+                    // قبل از بالا آمدن WebView: صفحهٔ تیره با دکمهٔ پخش
+                    for (int i = 0; i < world.interior.furniture.size(); i++) {
+                        int[] st = world.interior.furnitureStyle.get(i);
+                        if (st[1] == 9) {
+                            float[] f = world.interior.furniture.get(i);
+                            movieScreen.set(f[0] + 6f, f[1] + 6f, f[0] + f[2] - 6f, f[1] + f[3] - 6f);
+                            sprites.p.setColor(0xFF14141C);
+                            c.drawRoundRect(movieScreen, 4f, 4f, sprites.p);
+                            sprites.p.setColor(0xFFFFFFFF);
+                            sprites.p.setTextSize(44f);
+                            sprites.p.setTextAlign(Paint.Align.CENTER);
+                            c.drawText("▶", movieScreen.centerX(), movieScreen.centerY() + 15f, sprites.p);
+                        }
+                    }
+                }
                 }
 
                 c.restore();

@@ -125,8 +125,32 @@ public class SpriteLib {
         // ✅ موها — فقط بالای سر؛ چهره از روبه‌رو کاملاً باز می‌ماند
         // (رفع باگ: صورت از روبه‌رو مثل پشت سر پرِ مو دیده می‌شد)
         boolean back = facing == 2;
-        if (hairStyle == 2 && girl) {
-            // موی بلند دخترانه: چتری کوتاه + دو طرف بلند (بدون پوشاندن صورت)
+        if (girl && hairStyle == 2 && back) {
+            // ✅ پشت سر دختر — سر کامل پوشیده از مو + موی بلند روی پشت
+            // (رفع باگ درخواست کاربر: پشت سر دخترها کچل دیده می‌شد)
+            p.setColor(hairColor);
+            c.drawCircle(x, y - 30f, 13.4f, p);
+            c.drawRoundRect(x - 13, y - 36, x + 13, y - 8, 6, 6, p);
+            // راه‌راه بافت مو
+            p.setColor(0x33000000);
+            p.setStrokeWidth(1.6f);
+            c.drawLine(x - 4f, y - 33f, x - 4f, y - 12f, p);
+            c.drawLine(x + 4f, y - 33f, x + 4f, y - 12f, p);
+            p.setStrokeWidth(0.1f);
+        } else if (hairStyle == 2 && girl) {
+            // موی بلند دخترانه — از بغل هم ته سر مو دارد (کلیپ‌شده تا روی چشم نیاید)
+            c.save();
+            if (facing == 3) {
+                c.clipRect(x - 15, y - 44, x - 4.5f, y - 16);
+                p.setColor(hairColor);
+                c.drawCircle(x - 8f, y - 30f, 10f, p);
+            } else if (facing == 1) {
+                c.clipRect(x + 4.5f, y - 44, x + 15, y - 16);
+                p.setColor(hairColor);
+                c.drawCircle(x + 8f, y - 30f, 10f, p);
+            }
+            c.restore();
+            // چتری کوتاه + دو طرف بلند (بدون پوشاندن صورت)
             c.save();
             c.clipRect(x - 15, y - 44, x + 15, y - 31.5f);
             p.setColor(hairColor);
@@ -202,6 +226,42 @@ public class SpriteLib {
         }
 
         c.restore();
+    }
+
+    // ================= کوله‌پشتی مدرسه 🎒 =================
+
+    /**
+     * ✅ کوله‌پشتی دانش‌آموزی — مناسب هر جهت نگاه
+     * (از پشت کامل، از بغل نیمه، از روبه‌رو فقط بند‌ها)
+     */
+    public void drawBackpack(Canvas c, float x, float y, int dir, int color) {
+        p.setColor(0x22000000);
+        if (dir == 2) {
+            // از پشت — کوله کامل روی پشت
+            p.setColor(color);
+            c.drawRoundRect(x - 11, y - 17, x + 11, y + 4, 6, 6, p);
+            // درِ کوله
+            p.setColor(0x33000000);
+            c.drawRoundRect(x - 8, y - 12, x + 8, y - 5, 4, 4, p);
+            // بند‌ها روی شانه
+            p.setColor(0x2A000000);
+            c.drawRoundRect(x - 10, y - 19, x - 7, y - 13, 2, 2, p);
+            c.drawRoundRect(x + 7, y - 19, x + 10, y - 13, 2, 2, p);
+        } else if (dir == 1 || dir == 3) {
+            // از بغل — نیمهٔ کوله در سمت پشت سر
+            p.setColor(color);
+            if (dir == 3) c.drawRoundRect(x - 16, y - 15, x - 8, y + 2, 5, 5, p);
+            else c.drawRoundRect(x + 8, y - 15, x + 16, y + 2, 5, 5, p);
+            // بند روی شانه
+            p.setColor(0x2A000000);
+            if (dir == 3) c.drawRoundRect(x - 6, y - 18, x - 3, y - 12, 2, 2, p);
+            else c.drawRoundRect(x + 3, y - 18, x + 6, y - 12, 2, 2, p);
+        } else {
+            // از روبه‌رو — فقط بند‌های روی شانه
+            p.setColor(0x33000000);
+            c.drawRoundRect(x - 9, y - 17, x - 6, y - 6, 2, 2, p);
+            c.drawRoundRect(x + 6, y - 17, x + 9, y - 6, 2, 2, p);
+        }
     }
 
     // ================= درخت =================
@@ -406,6 +466,7 @@ public class SpriteLib {
         c.restore();
 
         // برچسب شادی
+        Fonts.applyBold(p);
         p.setColor(0xFFFFFFFF);
         p.setTextAlign(Paint.Align.CENTER);
         p.setTextSize(18f);
@@ -521,6 +582,7 @@ public class SpriteLib {
             c.drawCircle(-L + 3f, W * 0.55f, 3.5f, p);
         }
         // تاکسی: تابلو
+        Fonts.apply(p);
         if (v.type == Vehicle.CAR_TAXI) {
             p.setColor(0xFFFFEB3B);
             c.drawRoundRect(-8f, -W - 9f, 8f, -W - 2f, 3, 3, p);
@@ -666,7 +728,8 @@ public class SpriteLib {
         p.setColor(0xFF0D47A1);
         c.drawCircle(x + 10f, y - 45f, 3f, p);
         c.drawCircle(x + 32f, y - 45f, 3f, p);
-        // اسم ایستگاه
+        // اسم ایستگاه — با فونت وزیر (درخواست کاربر)
+        Fonts.applyBold(p);
         p.setColor(0xFF37474F);
         p.setTextAlign(Paint.Align.CENTER);
         p.setTextSize(16f);
@@ -954,24 +1017,26 @@ public class SpriteLib {
 
     /**
      * ✅ اسم ساختمان — متن ساده روی بدنه (بدون تابلو/استیکر پشتش)
-     * حاشیهٔ تیره دور متن برای خوانایی. عرض نصف متن را برمی‌گرداند.
+     * ✅ حالا با فونت فارسی «وزیر» + سایهٔ نرم‌تر — خواناتر و زیباتر (درخواست کاربر)
+     * عرض نصف متن را برمی‌گرداند.
      */
     private float drawNameLabel(Canvas c, Building b) {
         String label = b.name();
         if (label == null || label.isEmpty()) return 0f;
-        float ts = Math.min(27f, 560f / Math.max(8f, label.length()));
+        Fonts.applyBold(p);
+        float ts = Math.min(28f, 580f / Math.max(8f, label.length()));
         if (ts < 16f) ts = 16f;
         p.setTextAlign(Paint.Align.CENTER);
         p.setTextSize(ts);
         float lcx = b.doorX;
         float lcy = b.doorY - 58f;
         float halfW = p.measureText(label) / 2f;
-        // سایهٔ تیره دور متن (۴ جهت) — به‌جای استیکر پشت متن
-        p.setColor(0xB320262C);
-        c.drawText(label, lcx - 2f, lcy + ts * 0.35f + 2f, p);
-        c.drawText(label, lcx + 2f, lcy + ts * 0.35f + 2f, p);
-        c.drawText(label, lcx - 2f, lcy + ts * 0.35f - 2f, p);
-        c.drawText(label, lcx + 2f, lcy + ts * 0.35f - 2f, p);
+        // سایهٔ نرم یک‌تکه زیر متن (زیباتر از حاشیهٔ ضخیم چهارطرفه)
+        p.setColor(0x8A102028);
+        c.drawText(label, lcx, lcy + ts * 0.35f + 2.5f, p);
+        p.setColor(0x66102028);
+        c.drawText(label, lcx - 1.2f, lcy + ts * 0.35f + 1.2f, p);
+        c.drawText(label, lcx + 1.2f, lcy + ts * 0.35f + 1.2f, p);
         p.setColor(0xFFFFFFFF);
         c.drawText(label, lcx, lcy + ts * 0.35f, p);
         return halfW;
@@ -1162,6 +1227,40 @@ public class SpriteLib {
                 p.setColor(0x44000000);
                 c.drawRoundRect(x + 6f, y + 4f, x + w - 6f, y + h * 0.5f, 4, 4, p);
                 break;
+            case Interior.F_NUMBOARD: {
+                // ✅ تخته آموزش اعداد (مدرسه)
+                p.setColor(0xFF6D4C41);
+                c.drawRoundRect(x - 6f, y - 6f, x + w + 6f, y + h + 6f, 8, 8, p);
+                p.setColor(0xFF2E7D32);
+                c.drawRoundRect(x, y, x + w, y + h, 5, 5, p);
+                Fonts.applyBold(p);
+                p.setTextAlign(Paint.Align.CENTER);
+                String[] digs = {"۱", "۲", "۳", "۴", "۵"};
+                int[] dcol = {0xFFFF7043, 0xFF42A5F5, 0xFFFFCA28, 0xFF66BB6A, 0xFFF06292};
+                for (int i = 0; i < 5; i++) {
+                    p.setColor(dcol[i]);
+                    p.setTextSize(h * 0.55f);
+                    c.drawText(digs[i], x + w * (0.14f + i * 0.18f), y + h * 0.72f, p);
+                }
+                break;
+            }
+            case Interior.F_ALPHABOARD: {
+                // ✅ تخته آموزش الفبا (مدرسه)
+                p.setColor(0xFF6D4C41);
+                c.drawRoundRect(x - 6f, y - 6f, x + w + 6f, y + h + 6f, 8, 8, p);
+                p.setColor(0xFF1565C0);
+                c.drawRoundRect(x, y, x + w, y + h, 5, 5, p);
+                Fonts.applyBold(p);
+                p.setTextAlign(Paint.Align.CENTER);
+                String[] lets = {"ا", "ب", "پ", "ت"};
+                int[] lcol = {0xFFFFFFFF, 0xFFFFEB3B, 0xFF80CBC4, 0xFFFFAB91};
+                for (int i = 0; i < 4; i++) {
+                    p.setColor(lcol[i]);
+                    p.setTextSize(h * 0.6f);
+                    c.drawText(lets[i], x + w * (0.15f + i * 0.23f), y + h * 0.74f, p);
+                }
+                break;
+            }
             default:
                 p.setColor(color);
                 c.drawRoundRect(x, y, x + w, y + h, 6, 6, p);
@@ -1176,85 +1275,6 @@ public class SpriteLib {
         c.drawRoundRect(x - 22f, y - 30f, x + 22f, y - 14f, 8, 8, p);
         p.setColor(0xFFE53935);
         c.drawRoundRect(x - 17f, y - 26f, x + 17f, y - 18f, 4, 4, p);
-    }
-
-    // ================= فیلم سینما =================
-
-    public void drawMovie(Canvas c, RectF screen, int index, float time) {
-        // پس‌زمینه فیلم
-        switch (index) {
-            case 0:
-                // مسابقه ماشین
-                p.setColor(0xFF90CAF9);
-                c.drawRect(screen, p);
-                p.setColor(0xFF616161);
-                c.drawRect(screen.left, screen.centerY() - 20f, screen.right, screen.centerY() + 50f, p);
-                p.setColor(0xFFFFFFFF);
-                float dash = (time * 300f) % 60f;
-                for (float dx = screen.left - 60f + dash; dx < screen.right; dx += 60f) {
-                    c.drawRect(dx, screen.centerY() + 12f, dx + 30f, screen.centerY() + 18f, p);
-                }
-                float carX = screen.centerX() + (float) Math.sin(time * 2.2f) * 90f;
-                p.setColor(0xFFE53935);
-                c.drawRoundRect(carX - 34f, screen.centerY() - 8f, carX + 34f, screen.centerY() + 26f, 8, 8, p);
-                p.setColor(0xFFB3E5FC);
-                c.drawRoundRect(carX - 16f, screen.centerY() - 2f, carX + 12f, screen.centerY() + 12f, 4, 4, p);
-                p.setColor(0xFF212121);
-                c.drawCircle(carX - 20f, screen.centerY() + 28f, 7f, p);
-                c.drawCircle(carX + 20f, screen.centerY() + 28f, 7f, p);
-                break;
-
-            case 1:
-                // ماهی رنگارنگ
-                p.setColor(0xFF0288D1);
-                c.drawRect(screen, p);
-                p.setColor(0x55FFFFFF);
-                for (int i = 0; i < 5; i++) {
-                    float bx = screen.left + 40f + i * 90f;
-                    float by = screen.bottom - 30f - (float) Math.sin(time + i) * 8f;
-                    c.drawOval(bx, by, bx + 34f, by + 12f, p);
-                }
-                float fishX = screen.left + (time * 130f) % (screen.width() + 120f) - 60f;
-                float fishY = screen.centerY() + (float) Math.sin(time * 3f) * 30f;
-                p.setColor(0xFFFF7043);
-                c.drawOval(fishX - 30f, fishY - 16f, fishX + 30f, fishY + 16f, p);
-                p.setColor(0xFFBF360C);
-                tri(c, new float[]{fishX - 30f, fishY, fishX - 52f, fishY - 14f, fishX - 52f, fishY + 14f});
-                p.setColor(0xFFFFFFFF);
-                c.drawCircle(fishX + 16f, fishY - 5f, 4.5f, p);
-                p.setColor(0xFF212121);
-                c.drawCircle(fishX + 17f, fishY - 5f, 2.2f, p);
-                break;
-
-            default:
-                // موشک فضایی
-                p.setColor(0xFF1A237E);
-                c.drawRect(screen, p);
-                p.setColor(0xFFFFFFFF);
-                for (int i = 0; i < 14; i++) {
-                    float sx = screen.left + 30f + i * (screen.width() - 60f) / 13f;
-                    float sy = screen.top + 30f + ((i * 37) % (int) (screen.height() - 60f));
-                    c.drawCircle(sx, sy, 2.5f, p);
-                }
-                float ry = screen.bottom + 40f - (time * 180f) % (screen.height() + 140f);
-                float rx = screen.centerX() + (float) Math.sin(time * 1.5f) * 40f;
-                p.setColor(0xFFECEFF1);
-                c.drawRoundRect(rx - 16f, ry - 46f, rx + 16f, ry + 30f, 14, 14, p);
-                p.setColor(0xFFE53935);
-                tri(c, new float[]{rx - 16f, ry + 26f, rx + 16f, ry + 26f, rx, ry + 54f});
-                tri(c, new float[]{rx - 16f, ry + 4f, rx - 16f, ry + 30f, rx - 34f, ry + 30f});
-                tri(c, new float[]{rx + 16f, ry + 4f, rx + 16f, ry + 30f, rx + 34f, ry + 30f});
-                p.setColor(0xFF29B6F6);
-                c.drawCircle(rx, ry - 18f, 8f, p);
-                p.setColor(0xFFFFB300);
-                c.drawCircle(rx + (float) Math.sin(time * 20f) * 4f, ry + 58f, 7f, p);
-                p.setColor(0xFFFF7043);
-                c.drawCircle(rx - (float) Math.sin(time * 20f) * 4f, ry + 66f, 5f, p);
-                break;
-        }
-
-        // قاب و نور پرده
-        p.setColor(0x00000000);
     }
 
     // ================= شهربازی: چرخ‌وفلک و سرسیر =================
@@ -1305,6 +1325,7 @@ public class SpriteLib {
         c.drawCircle(x, y, 7f, p);
 
         // تابلو
+        Fonts.apply(p);
         p.setColor(0xFF37474F);
         p.setTextSize(20f);
         p.setTextAlign(Paint.Align.CENTER);
@@ -1363,6 +1384,7 @@ public class SpriteLib {
         p.setColor(0xFFFFD54F);
         c.drawCircle(x, y - 98f, 7f, p);
 
+        Fonts.apply(p);
         p.setColor(0xFF37474F);
         p.setTextSize(20f);
         p.setTextAlign(Paint.Align.CENTER);
@@ -1452,6 +1474,7 @@ public class SpriteLib {
         for (int i = 0; i < npcs.size(); i++) {
             Npc n = npcs.get(i);
             if (n.bubble == null || n.bubbleTimer <= 0f) continue;
+            Fonts.apply(p);
             p.setTextAlign(Paint.Align.CENTER);
             p.setTextSize(17f);
             float tw = p.measureText(n.bubble) + 26f;

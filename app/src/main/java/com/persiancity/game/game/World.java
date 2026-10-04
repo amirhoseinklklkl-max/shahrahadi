@@ -240,6 +240,20 @@ public class World {
         if (interior.floorType.equals("restaurant") || interior.floorType.equals("market") || interior.floorType.equals("cafe")) {
             Npc.scatter(interiorNpcs, this, 3, interior.roomW / 2f, interior.roomH / 2f, interior.roomW);
         }
+        // ✅ مدرسه: معلم + چند دانش‌آموز با کوله‌پشتی داخل سالن (درخواست کاربر)
+        if (interior.floorType.equals("school")) {
+            Npc teacher = new Npc(interior.roomW / 2f, 150f, 0);
+            teacher.dir = 0;
+            interiorNpcs.add(teacher);
+            // بچه‌ها پشت نیمکت‌ها (۴ نیمکت)
+            for (int i = 0; i < 4; i++) {
+                Npc kid = Npc.schoolKid(135f + i * 160f, 300f);
+                kid.dir = 2;
+                interiorNpcs.add(kid);
+            }
+            // یکی هم قدم می‌زند
+            interiorNpcs.add(Npc.schoolKid(interior.roomW * 0.5f, interior.roomH * 0.72f));
+        }
         SoundManager.play("door");
     }
 
@@ -371,6 +385,7 @@ public class World {
             Npc n = cityNpcs.get(i);
             sprites.drawPerson(c, n.x, n.y, n.dir, n.anim,
                     n.shirt, n.pants, n.skin, 0xFF3E2723, n.hairStyle, -1, false, n.gender);
+            if (n.backpack) sprites.drawBackpack(c, n.x, n.y, n.dir, n.backpackColor);
         }
 
         // خودروها (قطار با واگن‌هایش)
@@ -685,6 +700,7 @@ public class World {
             Npc n = interiorNpcs.get(i);
             sprites.drawPerson(c, n.x, n.y, n.dir, n.anim,
                     n.shirt, n.pants, n.skin, 0xFF3E2723, n.hairStyle, -1, false, n.gender);
+            if (n.backpack) sprites.drawBackpack(c, n.x, n.y, n.dir, n.backpackColor);
         }
 
         sprites.drawBubbles(c, interiorNpcs);
